@@ -229,7 +229,7 @@ new Chart(document.getElementById('chartSectors'), {
 
 new Chart(document.getElementById('chartStatus'), {
   type:'doughnut',
-  data:{labels:['Ongoing','Completed','Planning','Delayed'], datasets:[{data:[64,52,6,6], backgroundColor:['#1C7A44','#0E4A2B','#C8971E','#B3352A']}]},
+  data:{labels:['Admin','PDIP','Development Planning','Research & GIS','Monitoring'], datasets:[{data:[64,52,9,6,6], backgroundColor:['#1C7A44','#0E4A2B','#249456','#C8971E','#B3352A']}]},
   options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10}}}, cutout:'62%'}
 });
 
@@ -1466,4 +1466,3 @@ renderVisitors();
 
 /* Set the initial role now that every function/data set above is defined */
 setRole('public', document.querySelector('.role-btn'));
-
