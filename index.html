@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPDO tarlac — Provincial Planning &amp; Development Office</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="overlay" id="overlay" data-action="close-sidebar"></div>
+
+<div class="app">
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <svg class="seal" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="22" fill="#0E4A2B" stroke="#C8971E" stroke-width="2"/>
+        <circle cx="24" cy="24" r="16" fill="none" stroke="#F3F9F4" stroke-width="1"/>
+        <path d="M24 12 L30 24 L24 36 L18 24 Z" fill="#C8971E"/>
+        <text x="24" y="26" text-anchor="middle" font-family="Poppins" font-size="7" fill="#0E4A2B" font-weight="700">PPDO</text>
+      </svg>
+      <div>
+        <div class="brand-name">PPDO Tarlac</div>
+        <div class="brand-sub">Planning &amp; Development</div>
+      </div>
+    </div>
+
+    <div class="nav-group-label">Overview</div>
+    <a class="nav-item active" data-target="dashboard" data-go="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Dashboard
+    </a>
+    
+
+    <div class="nav-group-label">Public Information</div>
+    <a class="nav-item" data-target="news" data-go="news">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
+      News &amp; Announcements
+    </a>
+    <a class="nav-item" data-target="charter" data-go="charter">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg>
+      Citizen's Charter
+    </a>
+    <a class="nav-item" data-target="staff" data-go="staff">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M17 11a4 4 0 1 0 0-8"/><path d="M1 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M17 21v-2a4 4 0 0 0-3-3.87"/></svg>
+      Staff Directory
+    </a>
+    <a class="nav-item" data-target="profiles" data-go="profiles">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg>
+      Provincial &amp; Municipal Profiles
+    </a>
+    <a class="nav-item" data-target="gis" data-go="gis">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v15M15 6v15M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/></svg>
+      GIS &amp; Provincial Atlas
+    </a>
+    <a class="nav-item" data-target="documents" data-go="documents">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+      Document Library
+    </a>
+
+    <div class="nav-group-label">Planning &amp; Projects</div>
+    <a class="nav-item" data-target="projects" data-go="projects">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      Project Monitoring
+    </a>
+    <a class="nav-item" data-target="sectors" data-go="sectors">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+      Development Sectors
+    </a>
+    <a class="nav-item" data-target="divisions" data-go="divisions">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      Division Dashboards
+    </a>
+    <a class="nav-item" data-target="reports" data-go="reports">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>
+      Reports &amp; Statistics
+    </a>
+
+    <div class="nav-group-label">Administration</div>
+    <a class="nav-item" data-target="admin" id="navAdmin" data-go="admin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z"/><path d="M9.5 12l2 2 3.5-4"/></svg>
+      Administrative Services
+      <span class="nav-badge" id="adminBadge">Staff+</span>
+    </a>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main">
+    <div class="topbar">
+      <button class="menu-toggle" data-action="open-sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search reports, documents, projects, maps…">
+      </div>
+     
+      <div class="topbar-right">
+        <div class="role-switch">
+          <button class="role-btn active" data-role="public" data-action="set-role">Public</button>
+          <button class="role-btn" data-role="staff" data-action="set-role">Staff</button>
+          <button class="role-btn" data-role="admin" data-action="set-role">Admin</button>
+        </div>
+        <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot"></span></button>
+        <div class="avatar" id="avatarInit">PU</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ============ DASHBOARD ============ -->
+      <section class="section active" id="sec-dashboard">
+        <div class="page-head">
+          <div>
+            <h1>Good day!!!</h1>
+            <p>Here's what's happening across Tarlac's planning and development programs today.</p>
+          </div>
+          <button class="btn btn-primary" data-go="projects">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Quick Actions
+          </button>
+        </div>
+
+        <div class="grid g4">
+          <div class="card stat-card">
+            <div class="stat-top"><div class="stat-icon stat-icon-green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div><span class="trend up">+4.2%</span></div>
+            <div class="stat-value">128</div>
+            <div class="stat-label">Active provincial projects</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-top"><div class="stat-icon stat-icon-blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
+            </div><span class="trend up">+12</span></div>
+            <div class="stat-value">47</div>
+            <div class="stat-label">Documents published this month</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-top"><div class="stat-icon stat-icon-gold">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg>
+            </div><span class="trend up">On track</span></div>
+            <div class="stat-value">₱0.00</div>
+            <div class="stat-label">Total PDIP allocation, CY 2026</div>
+          </div>
+          <div class="card stat-card">
+            <div class="stat-top"><div class="stat-icon stat-icon-red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L2.5 17a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+            </div><span class="trend down">6 flagged</span></div>
+            <div class="stat-value">6</div>
+            <div class="stat-label">Projects needing attention</div>
+          </div>
+        </div>
+
+        <div class="section-title-row"><h2>Program performance</h2></div>
+        <div class="charts-row">
+          <div class="card">
+            <h3>Project completion by sector (2026)</h3>
+            <div class="chart-box"><canvas id="chartSectors"></canvas></div>
+          </div>
+          <div class="card">
+            <h3>Project status distribution</h3>
+            <div class="chart-box"><canvas id="chartStatus"></canvas></div>
+          </div>
+        </div>
+
+        <div class="section-title-row"><h2>Quick access modules</h2></div>
+        <div class="grid g4">
+          <div class="card module-card" data-go="gis">
+            <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v15M15 6v15M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/></svg></div>
+            <h4>Provincial Atlas / GIS</h4>
+            <p>Hazard, thematic, and facility maps for all 47 LGUs.</p>
+          </div>
+          <div class="card module-card" data-go="reports">
+            <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg></div>
+            <h4>Reports &amp; Statistics</h4>
+            <p>Socio-economic, poverty, and public finance data.</p>
+          </div>
+          <div class="card module-card" data-go="charter">
+            <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg></div>
+            <h4>Citizen's Charter</h4>
+            <p>Frontline service steps, fees, and processing times.</p>
+          </div>
+          <div class="card module-card" data-go="admin">
+            <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z"/></svg></div>
+            <h4>Administrative Services</h4>
+            <p>Personnel, records, and internal request tracking.</p>
+          </div>
+        </div>
+
+        <div class="section-title-row"><h2>Latest announcements</h2><a class="link-more" data-go="news">View all →</a></div>
+        <div class="grid g3" id="dashNews"></div>
+      </section>
+
+      <!-- ============ NEWS ============ -->
+      <section class="section" id="sec-news">
+        <div class="page-head">
+          <div>
+            <h1>News &amp; Announcements</h1>
+            <p>Official updates, advisories, and press releases from PPDO Tarlac. <span id="newsHintText">Click any announcement to read more.</span></p>
+          </div>
+
+          <div class="news-admin-buttons">
+            <button class="btn btn-primary role-hidden" id="btnNewPost">
+              + New Announcement
+            </button>
+
+            <button class="btn btn-outline role-hidden" id="btnEdit">
+              Update Announcement
+            </button>
+
+            <button class="btn btn-danger role-hidden" id="btnDelete">
+              Delete Announcement
+            </button>
+          </div>
+        </div>
+        <div class="filters" id="newsFilters">
+          <button class="chip active" data-tag="All">All</button>
+          <button class="chip" data-tag="Advisory">Advisories</button>
+          <button class="chip" data-tag="Project Update">Project Updates</button>
+          <button class="chip" data-tag="Public Notice">Public Notices</button>
+          <button class="chip" data-tag="Event">Events</button>
+        </div>
+        <div class="grid g3" id="newsGrid"></div>
+      </section>
+
+      <!-- ============ CITIZEN'S CHARTER ============ -->
+      <section class="section" id="sec-charter">
+        <div class="page-head">
+          <div><h1>Citizen's Charter</h1><p>Step-by-step guide to PPDO's frontline services, requirements, fees, and turnaround time.</p></div>
+          <button class="btn btn-outline" id="btnDownloadCharter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v13m0 0l-4-4m4 4l4-4M4 21H16"/></svg>Download PDF</button>
+        </div>
+        <div class="tabs">
+          <div class="tab active" data-ctab="external">External Services</div>
+          <div class="tab" data-ctab="internal">Internal Services</div>
+        </div>
+        <div class="grid g2" id="charterList"></div>
+      </section>
+
+      <!-- ============ STAFF DIRECTORY (public) ============ -->
+      <section class="section" id="sec-staff">
+        <div class="page-head">
+          <div><h1>Staff Directory</h1><p>Meet PPDO Tarlac's personnel and see who's currently available — synced live with Administrative Services.</p></div>
+        </div>
+        <div class="staff-search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" id="staffSearchInput" placeholder="Search by name or division…">
+        </div>
+        <div class="grid g3" id="staffDirectoryGrid"></div>
+      </section>
+
+      <!-- ============ PROFILES ============ -->
+      <section class="section" id="sec-profiles">
+        <div class="page-head">
+          <div><h1>Provincial &amp; Municipal Profiles</h1><p>Socio-economic profile, poverty indicators, and municipal fact sheets for Tarlac's 3 districts.</p></div>
+        </div>
+        <div class="grid g4">
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h4"/></svg></div><h4>Socio-Economic Profile</h4><p>Environment, infrastructure, economic &amp; social sectors.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="9"/></svg></div><h4>Tarlac Economic Factbook 2024</h4><p>Key indicators, GDP, and investment climate.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V9l8-6 8 6v12"/></svg></div><h4>Tarlac Poverty Profile</h4><p>Poverty Database Monitoring System (PDMS).</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div><h4>PPDC Page</h4><p>Provincial Planning &amp; Development Council.</p></div>
+        </div>
+
+        <div class="section-title-row"><h2>Municipalities by district</h2>
+          <div class="filters filters-flush"><input type="text" id="muniSearchInput" class="input-220" placeholder="Search municipality…"></div>
+        </div>
+        <div id="muniLists"></div>
+      </section>
+
+      <!-- ============ GIS ============ -->
+      <section class="section" id="sec-gis">
+        <div class="page-head">
+          <div><h1>GIS &amp; Provincial Atlas</h1><p>Basic, hazard, thematic, statistical, and facility maps across Tarlac's municipalities.</p></div>
+          <button class="btn btn-outline" id="btnRequestShapefile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v13m0 0l-4-4m4 4l4-4M4 21h16"/></svg>Request Shapefile</button>
+        </div>
+        <div class="gis-layout">
+          <div class="card gis-panel">
+            <h4>Map category</h4>
+            <div class="layer-item"><input type="radio" name="mapcat" checked> Basic Maps</div>
+            <div class="layer-item"><input type="radio" name="mapcat"> Development Maps</div>
+            <div class="layer-item"><input type="radio" name="mapcat"> Hazard Maps</div>
+            <div class="layer-item"><input type="radio" name="mapcat"> Statistical (PDMS)</div>
+            <div class="layer-item"><input type="radio" name="mapcat"> Facilities &amp; Roads</div>
+            <h4>Layers</h4>
+            <div class="layer-item"><input type="checkbox" checked> Municipal boundaries</div>
+            <div class="layer-item"><input type="checkbox" checked> Road network</div>
+            <div class="layer-item"><input type="checkbox"> Flood hazard</div>
+            <div class="layer-item"><input type="checkbox"> Landslide hazard</div>
+            <div class="layer-item"><input type="checkbox"> Storm surge</div>
+            <h4>District</h4>
+            <div class="layer-item"><input type="checkbox" checked> 1st District</div>
+            <div class="layer-item"><input type="checkbox" checked> 2nd District</div>
+            <div class="layer-item"><input type="checkbox" checked> 3rd District</div>
+          </div>
+          <div class="map-canvas" id="mapCanvas">
+            <div class="map-hex" id="mapHex"></div>
+            <div class="map-caption">Tarlac Province — sample tile view (47 LGUs)</div>
+            <div class="map-tools">
+              <button id="btnMapZoomIn" title="Zoom in">+</button><button id="btnMapZoomOut" title="Zoom out">–</button><button id="btnMapFullscreen" title="Toggle fullscreen">⤢</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DOCUMENTS ============ -->
+      <section class="section" id="sec-documents">
+        <div class="page-head">
+          <div><h1>Document Library</h1><p>Search and download reports, resolutions, shapefiles, and administrative issuances.</p></div>
+          <button class="btn btn-primary role-hidden" id="btnUploadDoc">+ Upload Document</button>
+        </div>
+        <div class="filters">
+          <input type="text" id="docSearchInput" class="input-flex-220" placeholder="Search documents by title, keyword…">
+          <select id="docCategoryFilter"><option value="">All categories</option><option>PDC Resolutions</option><option>Administrative Reports</option><option>Shapefiles</option><option>Socio-Economic Data</option></select>
+          <select id="docYearFilter"><option value="">All years</option><option>2026</option><option>2025</option><option>2024</option><option>2023</option></select>
+          <button class="btn btn-outline" id="btnDocFilter">Filter</button>
+        </div>
+        <div class="card card-flush">
+          <table>
+            <thead><tr><th>Document</th><th>Category</th><th>Year</th><th>Size</th><th>Access</th><th></th></tr></thead>
+            <tbody id="docTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ PROJECTS ============ -->
+      <section class="section" id="sec-projects">
+        <div class="page-head">
+          <div><h1>Project Monitoring</h1><p>Track provincial development projects from proposal to completion.</p></div>
+          <button class="btn btn-primary role-hidden" id="btnNewProject">+ Add Project</button>
+        </div>
+        <div class="filters" id="projectFilters">
+          <button class="chip active" data-status="All">All (128)</button>
+          <button class="chip" data-status="ongoing">Ongoing (64)</button>
+          <button class="chip" data-status="completed">Completed (52)</button>
+          <button class="chip" data-status="planning">Planning (6)</button>
+          <button class="chip" data-status="delayed">Delayed (6)</button>
+        </div>
+        <div class="card card-flush">
+          <table>
+            <thead><tr><th>Project</th><th>Sector</th><th>Municipality</th><th>Budget</th><th>Progress</th><th>Status</th></tr></thead>
+            <tbody id="projTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ SECTORS ============ -->
+      <section class="section" id="sec-sectors">
+        <div class="page-head">
+          <div><h1>Development Sectors</h1><p>Planning units under PPDO's technical divisions.</p></div>
+        </div>
+        <div class="grid g3" id="sectorGrid"></div>
+
+        <div class="section-title-row"><h2>Special units</h2></div>
+        <div class="grid g4">
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3v15M15 6v15M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/></svg></div><h4>GIS Unit</h4><p>Mapping, equipment, and spatial analysis.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg></div><h4>BIWRMT</h4><p>Tarlac Integrated Water Resource Mgmt.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/></svg></div><h4>Project Development Unit</h4><p>PDMU personnel and monitoring.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></div><h4>ODA / Foreign Affairs</h4><p>Official development assistance projects.</p></div>
+        </div>
+      </section>
+
+      <!-- ============ DIVISION DASHBOARDS ============ -->
+      <section class="section" id="sec-divisions">
+        <div class="page-head">
+          <div><h1>Division Dashboards</h1><p>Live data pulled directly from each division's own Google Sheet — no re-encoding required.</p></div>
+        </div>
+
+        <div class="card card-divrow">
+          <div class="flex-1-220">
+            <label class="field-label">Select division</label>
+            <select id="divSelect" class="select-input"></select>
+          </div>
+          <div id="divConnStatus" class="text-muted-sm"></div>
+          <div class="row-actions-right">
+            <button class="btn btn-outline" id="btnDivRefresh" title="Re-fetch from Google Sheets">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 22v-6h6M3.5 9a8.5 8.5 0 0 1 14.6-4.9L21 8M20.5 15a8.5 8.5 0 0 1-14.6 4.9L3 16"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary role-hidden" id="btnDivConnect">Connect sheet</button>
+          </div>
+        </div>
+
+        <div id="divDashBody"></div>
+      </section>
+
+      <!-- ============ REPORTS ============ -->
+      <section class="section" id="sec-reports">
+        <div class="page-head">
+          <div><h1>Reports &amp; Statistical Data</h1><p>Public finance, demographics, and sector indicators across Tarlac.</p></div>
+          <button class="btn btn-outline" id="btnExportCSV">Export CSV</button>
+        </div>
+        <div class="charts-row">
+          <div class="card">
+            <h3>Population trend, Tarlac Province</h3>
+            <div class="chart-box"><canvas id="chartPop"></canvas></div>
+          </div>
+          <div class="card">
+            <h3>IRA share by district (2026)</h3>
+            <div class="chart-box"><canvas id="chartIRA"></canvas></div>
+          </div>
+        </div>
+        <div class="section-title-row"><h2>Report library</h2></div>
+        <div class="grid g3">
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/></svg></div><h4>Income Classification by LGU</h4><p>Province, city, and municipal income class.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/></svg></div><h4>Crime &amp; Fire Statistics</h4><p>Justice and public safety indicators.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/></svg></div><h4>Agriculture &amp; Fisheries</h4><p>Crops, livestock, aquaculture volumes.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/></svg></div><h4>Tourism Arrivals</h4><p>Visitor arrivals and attractions data.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/></svg></div><h4>Roads &amp; Bridges Inventory</h4><p>Condition, surface type, network length.</p></div>
+          <div class="card module-card"><div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/></svg></div><h4>CSO Accreditation Records</h4><p>2010–2025 accredited organizations.</p></div>
+        </div>
+      </section>
+
+      <!-- ============ ADMIN ============ -->
+      <section class="section" id="sec-admin">
+        <div class="page-head">
+          <div><h1>Administrative Services</h1><p>Internal tools for personnel, records, and workflow management.</p></div>
+        </div>
+        <div id="adminGate"></div>
+        <div id="adminBody" class="role-hidden">
+          <div class="grid g4">
+            <div class="card stat-card editable-stat"><div class="stat-value"><span id="statPersonnel" contenteditable="true">32</span></div><div class="stat-label">PPDO personnel on record</div></div>
+            <div class="card stat-card editable-stat"><div class="stat-value"><span id="statApprovals" contenteditable="true">9</span></div><div class="stat-label">Pending document approvals</div></div>
+            <div class="card stat-card editable-stat"><div class="stat-value"><span id="statRequests" contenteditable="true">15</span></div><div class="stat-label">Open service requests</div></div>
+            <div class="card stat-card editable-stat"><div class="stat-value"><span id="statUptime" contenteditable="true">99.2</span>%</div><div class="stat-label">Uptime, last 30 days <span class="opacity-muted">(manual figure — not live)</span></div></div>
+          </div>
+
+          <div class="section-title-row"><h2>Office calendar</h2>
+            <button class="btn btn-primary" id="btnNewEvent">+ Add Event</button>
+          </div>
+          <div class="grid g2 grid-admin-2col">
+            <div class="card calendar-card">
+              <div class="calendar-toolbar">
+                <h3 id="calMonthLabel"></h3>
+                <div class="cal-nav">
+                  <button id="btnCalPrev" title="Previous month">‹</button>
+                  <button class="cal-today-btn" id="btnCalToday">Today</button>
+                  <button id="btnCalNext" title="Next month">›</button>
+                </div>
+              </div>
+              <div class="calendar-grid" id="calWeekdays"></div>
+              <div class="calendar-grid" id="calGrid"></div>
+            </div>
+            <div class="card">
+              <h3 id="calSelectedLabel">Events today</h3>
+              <div id="calEventList" class="mt-8"></div>
+            </div>
+          </div>
+
+          <div class="section-title-row"><h2>Employee status</h2>
+            <button class="btn btn-primary" id="btnNewEmployee">+ Add Employee</button>
+          </div>
+          <div class="card card-flush">
+            <table>
+              <thead><tr><th>Employee</th><th>Division</th><th>Status</th><th>Note / Location</th><th>Last updated</th><th></th></tr></thead>
+              <tbody id="employeeTable"></tbody>
+            </table>
+          </div>
+
+          <div class="section-title-row"><h2>Visitor log</h2>
+            <button class="btn btn-primary" id="btnNewVisitor">+ Log Visitor</button>
+          </div>
+          <div class="card card-flush">
+            <table>
+              <thead><tr><th>Visitor</th><th>Organization</th><th>Purpose</th><th>Date &amp; Time</th><th>Host / Division</th><th></th></tr></thead>
+              <tbody id="visitorTable"></tbody>
+            </table>
+          </div>
+
+          <div class="section-title-row"><h2>Recent activity</h2></div>
+          <div class="card">
+            <div class="timeline">
+              <div class="timeline-item"><h5>Uploaded "Administrative Reports Q2 2026"</h5><span>Admin Division · 2 hours ago</span></div>
+              <div class="timeline-item"><h5>Updated project status — Ubay Coastal Road Rehab</h5><span>PDMU · Yesterday</span></div>
+              <div class="timeline-item"><h5>Published PDC Resolution No. 014, s. 2026</h5><span>PPDC Secretariat · 2 days ago</span></div>
+              <div class="timeline-item"><h5>New personnel record added — GIS Unit</h5><span>Admin Division · 3 days ago</span></div>
+            </div>
+          </div>
+
+          <div class="section-title-row"><h2>Printing &amp; photocopying fee schedule</h2></div>
+          <div class="card card-flush">
+            <table>
+              <thead><tr><th>Service</th><th>Unit</th><th>Fee</th></tr></thead>
+              <tbody>
+                <tr><td>Map printing (A1, colored)</td><td>per copy</td><td>₱250.00</td></tr>
+                <tr><td>Photocopy, short/long</td><td>per page</td><td>₱2.00</td></tr>
+                <tr><td>Shapefile release (with MOA)</td><td>per dataset</td><td>No charge</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <footer class="site-footer">
+      <div class="footer-grid">
+        <div>
+          <h5>PPDO Tarlac</h5>
+          <p class="footer-text">Provincial Planning and Development Office, Capitol Site, Tarlac City, Tarlac.</p>
+        </div>
+        <div><h5>Quick Links</h5><a data-go="charter">Citizen's Charter</a><a data-go="profiles">Profiles</a><a data-go="projects">Projects</a></div>
+        <div><h5>Resources</h5><a data-go="gis">Provincial Atlas</a><a data-go="documents">Documents</a><a data-go="reports">Reports</a></div>
+        <div><h5>Contact</h5><a href="#">tarlac@Tarlac.gov.ph</a><a href="#">(038) 411-xxxx</a><a href="#">Capitol Bldg., Tarlac City</a></div>
+      </div>
+      <div class="footer-bottom">© 2026 Provincial Government of Tarlac · PPDO. This is a UI/UX redesign concept, not the live production system.</div>
+    </footer>
+  </div>
+</div>
+
+<!-- Generic modal used for calendar events, employee, visitor, and news forms -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" id="modalBox">
+    <div class="modal-head">
+      <h3 id="modalTitle">Title</h3>
+      <button class="modal-close" id="modalCloseBtn" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot">
+      <button class="btn btn-outline" id="modalCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="modalSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
