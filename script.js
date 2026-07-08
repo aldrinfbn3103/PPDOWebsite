@@ -1936,7 +1936,7 @@ renderVisitors();
       html += '<div class="card"><h3 style="margin-bottom:10px;">Detailed Budget Data</h3>'
         + '<input type="text" id="'+searchId+'" placeholder="Search by office or plan…" '
         + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
-        + '<div style="overflow-x:auto;"><table><thead><tr>'
+        + '<div class="sheet-table-wrap"><table><thead><tr>'
         + '<th>Plan/Funding Source</th>'
         + (officeIdx>=0 ? '<th>Provincial Office</th>' : '')
         + '<th>Allocated</th>' + (obligIdx>=0?'<th>Obligated</th>':'') + (utilIdx>=0?'<th>Utilized</th>':'')
@@ -1955,8 +1955,8 @@ renderVisitors();
         var tbody = document.getElementById(tbodyId);
         if(!tbody) return;
         tbody.innerHTML = filtered.length ? filtered.slice(0, 200).map(function(r){
-          return '<tr><td>'+escapeHtml(r[planIdx])+'</td>'
-            + (officeIdx>=0 ? '<td>'+escapeHtml(r[officeIdx])+'</td>' : '')
+          return '<tr><td title="'+escapeHtml(r[planIdx])+'">'+escapeHtml(r[planIdx])+'</td>'
+            + (officeIdx>=0 ? '<td title="'+escapeHtml(r[officeIdx])+'">'+escapeHtml(r[officeIdx])+'</td>' : '')
             + '<td>'+formatPeso(toNumber(r[allocIdx]))+'</td>'
             + (obligIdx>=0 ? '<td>'+formatPeso(toNumber(r[obligIdx]))+'</td>' : '')
             + (utilIdx>=0 ? '<td>'+formatPeso(toNumber(r[utilIdx]))+'</td>' : '')
@@ -2061,7 +2061,7 @@ renderVisitors();
       html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
         + '<input type="text" id="'+searchId+'" placeholder="Search by title, sender, division, or status…" '
         + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
-        + '<div style="overflow-x:auto;"><table style="min-width:' + Math.max(700, cols.length * 130) + 'px; white-space:nowrap;"><thead><tr>'
+        + '<div class="sheet-table-wrap"><table><thead><tr>'
         + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('')
         + '</tr></thead><tbody id="'+tbodyId+'"></tbody></table></div>'
         + '</div>';
@@ -2076,7 +2076,7 @@ renderVisitors();
         var tbody = document.getElementById(tbodyId);
         if(!tbody) return;
         tbody.innerHTML = filtered.length ? filtered.slice(0, 200).map(function(r){
-          return '<tr>' + r.map(function(v){ return '<td>'+escapeHtml(v===null||v===undefined?'':v)+'</td>'; }).join('') + '</tr>';
+          return '<tr>' + r.map(function(v){ var s = escapeHtml(v===null||v===undefined?'':v); return '<td title="'+s+'">'+s+'</td>'; }).join('') + '</tr>';
         }).join('') : '<tr><td colspan="'+cols.length+'" style="text-align:center; color:var(--ink-soft); padding:20px;">No matching rows.</td></tr>';
       }
       renderRows('');
@@ -2164,10 +2164,10 @@ renderVisitors();
           + '<div class="chart-box"><canvas id="'+chartId+'"></canvas></div></div>';
       }
       html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
-        + '<div style="overflow-x:auto;">'
-        + '<table style="min-width:' + Math.max(700, cols.length * 130) + 'px; white-space:nowrap;"><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
+        + '<div class="sheet-table-wrap">'
+        + '<table><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
         + '<tbody>' + rows.slice(0, 200).map(function(r){
-            return '<tr>' + r.map(function(v){ return '<td>'+escapeHtml(v===null||v===undefined?'':v)+'</td>'; }).join('') + '</tr>';
+            return '<tr>' + r.map(function(v){ var s = escapeHtml(v===null||v===undefined?'':v); return '<td title="'+s+'">'+s+'</td>'; }).join('') + '</tr>';
           }).join('') + '</tbody></table>'
         + '</div>'
         + (rows.length > 200 ? '<p style="font-size:12px; color:var(--ink-soft); margin-top:10px;">Showing first 200 of '+rows.length+' rows.</p>' : '')
