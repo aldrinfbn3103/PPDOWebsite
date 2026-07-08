@@ -119,7 +119,7 @@
     <a class="nav-item" data-target="admin" id="navAdmin" data-go="admin">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z"/><path d="M9.5 12l2 2 3.5-4"/></svg>
       Administrative Services
-      <span class="nav-badge" id="adminBadge">Staff+</span>
+      <span class="nav-badge" id="adminBadge">Admin only</span>
     </a>
   </aside>
 
@@ -135,13 +135,8 @@
       </div>
      
       <div class="topbar-right">
-        <div class="role-switch">
-          <button class="role-btn active" data-role="public" data-action="set-role">Public</button>
-          <button class="role-btn" data-role="staff" data-action="set-role">Staff</button>
-          <button class="role-btn" data-role="admin" data-action="set-role">Admin</button>
-        </div>
         <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg><span class="dot"></span></button>
-        <div class="avatar" id="avatarInit">PU</div>
+        <div id="authWidget"></div>
       </div>
     </div>
 
@@ -443,12 +438,6 @@
           <div><h1>Admin, Finance and Support Division</h1><p>Personnel administration, budgeting, records, procurement, and general support services for PPDO Tarlac.</p></div>
         </div>
 
-        <!-- Division live-data widget (Firebase-backed) -->
-        <div class="card" style="margin-bottom:16px;">
-          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
-          <div id="divLoginBox-admin"></div>
-          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
-        </div>
         <div class="card card-divrow" style="margin-bottom:16px;">
           <div id="divStatus-admin" class="text-muted-sm"></div>
           <div class="row-actions-right">
@@ -491,12 +480,6 @@
           <div><h1>Project Development and Investment Programming Division</h1><p>Project proposal development, feasibility studies, and the Provincial Development Investment Program (PDIP).</p></div>
         </div>
 
-        <!-- Division live-data widget (Firebase-backed) -->
-        <div class="card" style="margin-bottom:16px;">
-          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
-          <div id="divLoginBox-pdip"></div>
-          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
-        </div>
         <div class="card card-divrow" style="margin-bottom:16px;">
           <div id="divStatus-pdip" class="text-muted-sm"></div>
           <div class="row-actions-right">
@@ -539,12 +522,6 @@
           <div><h1>Research, GIS and Data Management Division</h1><p>Socio-economic research, statistics, geographic information systems, and provincial data management.</p></div>
         </div>
 
-        <!-- Division live-data widget (Firebase-backed) -->
-        <div class="card" style="margin-bottom:16px;">
-          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
-          <div id="divLoginBox-research"></div>
-          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
-        </div>
         <div class="card card-divrow" style="margin-bottom:16px;">
           <div id="divStatus-research" class="text-muted-sm"></div>
           <div class="row-actions-right">
@@ -587,12 +564,6 @@
           <div><h1>Monitoring and Evaluation, Reporting Division</h1><p>Tracking project implementation, evaluating outcomes, and preparing performance reports.</p></div>
         </div>
 
-        <!-- Division live-data widget (Firebase-backed) -->
-        <div class="card" style="margin-bottom:16px;">
-          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
-          <div id="divLoginBox-monitoring"></div>
-          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
-        </div>
         <div class="card card-divrow" style="margin-bottom:16px;">
           <div id="divStatus-monitoring" class="text-muted-sm"></div>
           <div class="row-actions-right">
@@ -635,12 +606,6 @@
           <div><h1>Development Planning Division</h1><p>Formulating and updating the province's comprehensive development and land use plans.</p></div>
         </div>
 
-        <!-- Division live-data widget (Firebase-backed) -->
-        <div class="card" style="margin-bottom:16px;">
-          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
-          <div id="divLoginBox-planning"></div>
-          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
-        </div>
         <div class="card card-divrow" style="margin-bottom:16px;">
           <div id="divStatus-planning" class="text-muted-sm"></div>
           <div class="row-actions-right">

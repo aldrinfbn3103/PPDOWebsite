@@ -10,9 +10,6 @@ document.addEventListener('click', function(e){
   var openTarget = e.target.closest('[data-action="open-sidebar"]');
   if(openTarget){ openSidebar(); return; }
 
-  var roleTarget = e.target.closest('[data-action="set-role"]');
-  if(roleTarget){ setRole(roleTarget.dataset.role, roleTarget); return; }
-
   var goTarget = e.target.closest('[data-go]');
   if(goTarget){ go(goTarget.dataset.go, goTarget.hasAttribute('data-target') ? goTarget : null); return; }
 
@@ -61,51 +58,120 @@ function go(target, el){
 function openSidebar(){document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('open');}
 function closeSidebar(){document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('open');}
 
-/* ---------------- Role-based access ---------------- */
-var currentRole = 'public';
-function setRole(role, btn){
-  currentRole = role;
-  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  var avatar = document.getElementById('avatarInit');
-  var adminGate = document.getElementById('adminGate');
-  var adminBody = document.getElementById('adminBody');
-  var badge = document.getElementById('adminBadge');
+/* ---------------- Site-wide auth (real Firebase auth, single sign-in) ----------------
+   One shared sign-in, available from the topbar on every page — no more
+   per-division login boxes and no more client-side role toggle. Signing in
+   as a division's account (e.g. research@ppdo.gov.ph) unlocks editing for
+   that division's own page only; everyone else (including other divisions)
+   stays read-only there. Administrative Services, plus the staff/admin-only
+   action buttons on News, Documents, and Projects, are restricted to the
+   admin@ppdo.gov.ph account specifically.
 
-  document.getElementById('btnNewPost').style.display = 'none';
-  document.getElementById('btnEdit').style.display = 'none';
-  document.getElementById('btnDelete').style.display = 'none';
-  document.getElementById('btnUploadDoc').style.display = 'none';
-  document.getElementById('btnNewProject').style.display = 'none';
+   This is the one auth controller for the whole site: it owns the Firebase
+   auth listener, the topbar sign-in widget, and the admin-only UI gating.
+   The Division Dashboards module (further down) reads `signedInSlug` from
+   here and just re-fetches/re-renders its widgets when it changes. */
+var DIVISION_ACCOUNTS = {
+  'admin@ppdo.gov.ph': 'admin',
+  'pdip@ppdo.gov.ph': 'pdip',
+  'research@ppdo.gov.ph': 'research',
+  'monitoring@ppdo.gov.ph': 'monitoring',
+  'planning@ppdo.gov.ph': 'planning'
+};
+var DIVISION_NAMES = {
+  admin: 'Admin, Finance and Support',
+  pdip: 'Project Development and Investment Programming',
+  research: 'Research, GIS and Data Management',
+  monitoring: 'Monitoring and Evaluation, Reporting',
+  planning: 'Development Planning'
+};
 
-  if(role==='public'){
-    avatar.textContent='PU';
-    adminGate.innerHTML = '<div class="access-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z"/></svg><div><strong>Staff or Admin login required.</strong><br>Administrative Services (personnel records, approvals, and internal workflows) are restricted to authorized government personnel. Please sign in with a staff or admin account to continue.</div></div>';
-    adminBody.style.display='none';
-    badge.textContent='Staff+';
+var fbAuth = (typeof firebase !== 'undefined') ? firebase.auth() : null;
+var adminSignedIn = false;
+var signedInSlug = null; // slug of the division tied to the logged-in account, if any
+var authStateListeners = []; // other modules (e.g. Division Dashboards) register here
+
+function onAuthStateReady(fn){ authStateListeners.push(fn); }
+
+(function(){
+  function renderAuthWidget(user, mySlug){
+    var widget = document.getElementById('authWidget');
+    if(!widget) return;
+
+    if(user){
+      var label = mySlug ? DIVISION_NAMES[mySlug] : user.email;
+      widget.innerHTML = '<div style="display:flex; align-items:center; gap:8px;">'
+        + '<div class="avatar" title="Signed in as '+escapeHtml(user.email)+'">'+escapeHtml((mySlug||'US').slice(0,2).toUpperCase())+'</div>'
+        + '<div style="display:flex; flex-direction:column; line-height:1.2;">'
+        + '<span style="font-size:12.5px; font-weight:600;">'+escapeHtml(label)+'</span>'
+        + '<a href="#" id="btnSiteSignOut" style="font-size:11.5px; color:var(--ink-soft);">Sign out</a>'
+        + '</div></div>';
+      var signOutBtn = document.getElementById('btnSiteSignOut');
+      if(signOutBtn) signOutBtn.addEventListener('click', function(e){ e.preventDefault(); fbAuth && fbAuth.signOut(); });
+    } else {
+      widget.innerHTML = '<button class="btn btn-outline" id="btnSiteSignIn" style="padding:6px 14px; font-size:13px;">Sign in</button>';
+      var signInBtn = document.getElementById('btnSiteSignIn');
+      if(signInBtn) signInBtn.addEventListener('click', openSignInModal);
+    }
   }
-  if(role==='staff'){
-    avatar.textContent='ST';
-    adminGate.innerHTML = '<div class="access-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg><div><strong>Staff access.</strong> You can view records and submit updates. Some settings are limited to Admin accounts.</div></div>';
-    adminBody.style.display='block';
-    badge.textContent='Staff';
-    document.getElementById('btnUploadDoc').style.display='inline-flex';
-    document.getElementById('btnNewProject').style.display='inline-flex';
+
+  function openSignInModal(){
+    var bodyHtml =
+      '<div class="form-group"><label>Division email</label><input type="email" id="fSiteEmail" placeholder="e.g. research@ppdo.gov.ph"></div>'
+      + '<div class="form-group"><label>Password</label><input type="password" id="fSitePass" placeholder="Password"></div>'
+      + '<div class="form-error" id="fSiteAuthError">Wrong email or password.</div>';
+
+    openModal('Sign in', bodyHtml, function(){
+      var email = document.getElementById('fSiteEmail').value.trim();
+      var pass = document.getElementById('fSitePass').value;
+      var errEl = document.getElementById('fSiteAuthError');
+      errEl.classList.remove('show');
+      if(!fbAuth) return false;
+      return fbAuth.signInWithEmailAndPassword(email, pass).then(function(){
+        return true;
+      }).catch(function(){
+        errEl.classList.add('show');
+        return false;
+      });
+    }, {saveLabel: 'Sign in'});
   }
-  if(role==='admin'){
-    avatar.textContent='AD';
-    adminGate.innerHTML='';
-    adminBody.style.display='block';
-    badge.textContent='Admin';
-    document.getElementById('btnNewPost').style.display='inline-flex';
-    document.getElementById('btnEdit').style.display='inline-flex';
-    document.getElementById('btnDelete').style.display='inline-flex';
-    document.getElementById('btnUploadDoc').style.display='inline-flex';
-    document.getElementById('btnNewProject').style.display='inline-flex';
+
+  function applyAdminUI(isAdmin){
+    adminSignedIn = isAdmin;
+
+    var adminGate = document.getElementById('adminGate');
+    var adminBody = document.getElementById('adminBody');
+    var badge = document.getElementById('adminBadge');
+
+    ['btnNewPost','btnEdit','btnDelete','btnUploadDoc','btnNewProject'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.style.display = isAdmin ? 'inline-flex' : 'none';
+    });
+
+    if(adminGate){
+      adminGate.innerHTML = isAdmin ? '' : '<div class="access-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z"/></svg><div><strong>Admin sign-in required.</strong><br>Administrative Services (personnel records, approvals, and internal workflows) are restricted to the Admin, Finance and Support division account. Sign in from the topbar to continue.</div></div>';
+    }
+    if(adminBody) adminBody.style.display = isAdmin ? 'block' : 'none';
+    if(badge) badge.textContent = isAdmin ? 'Admin' : 'Admin only';
+
+    if(typeof renderNews === 'function') renderNews();
+    if(typeof renderDocs === 'function') renderDocs();
   }
-  if(typeof renderNews === 'function') renderNews();
-  if(typeof renderDocs === 'function') renderDocs();
-}
+
+  function handleAuthState(user){
+    var mySlug = user ? (DIVISION_ACCOUNTS[(user.email || '').toLowerCase()] || null) : null;
+    signedInSlug = mySlug;
+    applyAdminUI(mySlug === 'admin');
+    renderAuthWidget(user, mySlug);
+    authStateListeners.forEach(function(fn){ fn(user, mySlug); });
+  }
+
+  if(fbAuth){
+    fbAuth.onAuthStateChanged(handleAuthState);
+  } else {
+    handleAuthState(null);
+  }
+})();
 
 function escapeHtml(str){
   return (str || '').toString().replace(/[&<>"']/g, function(c){
@@ -422,7 +488,7 @@ function filterDocs(){
 function openDocPreview(docId){
   var d = docs.find(function(x){ return x.id === docId; });
   if(!d) return;
-  var adminActions = currentRole !== 'public'
+  var adminActions = adminSignedIn
     ? '<div class="doc-preview-admin-actions">'
       + '<a class="btn btn-outline" data-doc="'+d.name+'">Download</a>'
       + '</div>'
@@ -949,7 +1015,7 @@ function openNewsDetail(id){
   } else {
     galleryHtml = '<div class="news-detail-thumb"></div>';
   }
-  var adminActions = currentRole === 'admin'
+  var adminActions = adminSignedIn
     ? '<div class="news-detail-admin-actions">'
       + '<button class="btn btn-outline" id="fNewsDetailEdit">Update this announcement</button>'
       + '<button class="btn btn-danger" id="fNewsDetailDelete">Delete this announcement</button>'
@@ -1492,8 +1558,10 @@ renderVisitors();
    ======================================================================= */
 (function(){
   // slug must match each page's section id (sec-div-<slug>) and the
-  // divLoginBox-<slug> / divStatus-<slug> / btnDivRefresh-<slug> /
-  // btnDivConnect-<slug> / divBody-<slug> element ids in index.html.
+  // divStatus-<slug> / btnDivRefresh-<slug> / btnDivConnect-<slug> /
+  // divBody-<slug> element ids in index.html. DIVISION_ACCOUNTS,
+  // signedInSlug, and fbAuth all come from the site-wide auth controller
+  // above — sign-in now happens once, from the topbar, not per division.
   var DIVISIONS = [
     {slug: 'admin',      name: 'Admin, Finance and Support'},
     {slug: 'pdip',       name: 'Project Development and Investment Programming'},
@@ -1502,21 +1570,8 @@ renderVisitors();
     {slug: 'planning',   name: 'Development Planning'}
   ];
 
-  // One Firebase Authentication account per division. Create these in the
-  // Firebase console (Authentication -> Users -> Add user) with whatever
-  // passwords you choose; only the email needs to match here.
-  var DIVISION_ACCOUNTS = {
-    'admin@ppdo.gov.ph': 'admin',
-    'pdip@ppdo.gov.ph': 'pdip',
-    'research@ppdo.gov.ph': 'research',
-    'monitoring@ppdo.gov.ph': 'monitoring',
-    'planning@ppdo.gov.ph': 'planning'
-  };
-
-  var fbAuth = (typeof firebase !== 'undefined') ? firebase.auth() : null;
   var db = (typeof firebase !== 'undefined') ? firebase.firestore() : null;
 
-  var signedInSlug = null; // slug of the division tied to the logged-in account, if any
   var lastFetchedAt = {};  // slug -> display time string
 
   /* ---------------- Firestore-backed config (shared, not per-browser) ---------------- */
@@ -1620,7 +1675,6 @@ renderVisitors();
     var statusEl = document.getElementById('divStatus-' + slug);
     var connectBtn = document.getElementById('btnDivConnect-' + slug);
     var refreshBtn = document.getElementById('btnDivRefresh-' + slug);
-    var loginBox = document.getElementById('divLoginBox-' + slug);
     var bodyEl = document.getElementById('divBody-' + slug);
     if(!bodyEl) return null; // this division's page/widget isn't on this build
 
@@ -1642,7 +1696,7 @@ renderVisitors();
         + '<p style="color:var(--ink-soft); font-size:13px; max-width:460px; margin:0 auto 16px;">'
         + (can
             ? 'Connect this division\'s own Google Sheet — data stays in the sheet, this page just mirrors it. Share the sheet as <strong>"Anyone with the link — Viewer"</strong>, then paste the link below.'
-            : 'This division hasn\'t connected a live data source yet. Sign in as this division above to connect one, or check back soon.')
+            : 'This division hasn\'t connected a live data source yet. Sign in from the topbar as this division to connect one, or check back soon.')
         + '</p>'
         + (can ? '<button class="btn btn-primary" data-action="trigger-div-connect" data-slug="'+slug+'">Connect Google Sheet</button>' : '')
         + '</div>';
@@ -1729,7 +1783,7 @@ renderVisitors();
 
     function openConnectForm(){
       if(!canConfigure()){
-        alert('Sign in as "' + name + '" above to connect its sheet.');
+        alert('Sign in from the topbar as "' + name + '" to connect its sheet.');
         return;
       }
       getConfig(slug).then(function(cfg){
@@ -1765,62 +1819,28 @@ renderVisitors();
       });
     }
 
-    /* ---------------- Division sign-in box (shared auth state) ---------------- */
-    function renderLoginBox(){
-      if(!loginBox) return;
-      var user = fbAuth && fbAuth.currentUser;
-      if(user){
-        var mySlug = DIVISION_ACCOUNTS[user.email] || null;
-        loginBox.innerHTML = '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">'
-          + '<span style="font-size:13px; color:var(--ink-soft);">Signed in as <strong>'+escapeHtml(user.email)+'</strong>'
-          + (mySlug === slug ? ' (this division)' : (mySlug ? ' — signed in as a different division' : ' — this email isn\'t linked to a division yet'))+'</span>'
-          + '<button class="btn btn-outline" id="btnDivSignOut-'+slug+'" style="padding:4px 12px; font-size:12.5px;">Sign out</button>'
-          + '</div>';
-        var signOutBtn = document.getElementById('btnDivSignOut-'+slug);
-        if(signOutBtn) signOutBtn.addEventListener('click', function(){ fbAuth.signOut(); });
-      } else {
-        loginBox.innerHTML = '<form id="divLoginForm-'+slug+'" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">'
-          + '<input type="email" id="divLoginEmail-'+slug+'" placeholder="division email" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; min-width:200px;">'
-          + '<input type="password" id="divLoginPass-'+slug+'" placeholder="password" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; min-width:140px;">'
-          + '<button type="submit" class="btn btn-primary" style="padding:6px 16px; font-size:13px;">Sign in</button>'
-          + '<span id="divLoginError-'+slug+'" style="color:var(--danger); font-size:12.5px; display:none;">Wrong email or password.</span>'
-          + '</form>';
-        document.getElementById('divLoginForm-'+slug).addEventListener('submit', function(e){
-          e.preventDefault();
-          var email = document.getElementById('divLoginEmail-'+slug).value.trim();
-          var pass = document.getElementById('divLoginPass-'+slug).value;
-          var errEl = document.getElementById('divLoginError-'+slug);
-          errEl.style.display = 'none';
-          if(!fbAuth){ return; }
-          fbAuth.signInWithEmailAndPassword(email, pass).catch(function(){
-            errEl.style.display = 'inline';
-          });
-        });
-      }
-    }
-
     if(refreshBtn) refreshBtn.addEventListener('click', fetchAndRender);
     if(connectBtn) connectBtn.addEventListener('click', openConnectForm);
 
-    return {renderLoginBox: renderLoginBox, fetchAndRender: fetchAndRender};
+    return {fetchAndRender: fetchAndRender};
   }
 
   var widgets = DIVISIONS.map(createWidget).filter(Boolean);
   if(!widgets.length) return; // none of these widgets are present on this page
 
   function refreshAll(){
-    widgets.forEach(function(w){ w.renderLoginBox(); w.fetchAndRender(); });
+    widgets.forEach(function(w){ w.fetchAndRender(); });
   }
 
-  if(fbAuth){
-    fbAuth.onAuthStateChanged(function(user){
-      signedInSlug = user ? (DIVISION_ACCOUNTS[user.email] || null) : null;
-      refreshAll();
-    });
-  } else {
-    refreshAll();
-  }
+  // Sign-in now happens once from the topbar (see the site-wide auth
+  // controller above). Whenever that auth state changes — sign in, sign
+  // out, switch accounts — just re-fetch/re-render every division widget
+  // on this page so each one's "Connect sheet" button and read-only state
+  // reflect who's signed in now.
+  onAuthStateReady(refreshAll);
+  refreshAll();
 })();
 
 /* Set the initial role now that every function/data set above is defined */
-setRole('public', document.querySelector('.role-btn'));
+/* Admin UI state is now driven entirely by the Firebase auth listener above
+   (see "Site-wide admin gating"), which fires once automatically on load. */
