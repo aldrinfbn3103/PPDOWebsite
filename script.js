@@ -1680,7 +1680,42 @@ renderVisitors();
     return sawNumber;
   }
 
-  /* ---------------- One widget instance per division ---------------- */
+  // Drops trailing blank rows and trailing "Total/Grand Total/Subtotal" rows
+  // from a single tab's data, so merging several monthly/quarterly tabs
+  // together doesn't double-count each tab's own summary row.
+  function stripTrailingSummaryRows(rows){
+    var end = rows.length;
+    while(end > 0){
+      var r = rows[end - 1];
+      var allBlank = r.every(function(c){ return c === null || c === undefined || String(c).trim() === ''; });
+      var firstText = String(r[0] != null ? r[0] : '').trim().toLowerCase();
+      var looksLikeTotal = /^(grand total|sub-?total|totals?)\b/.test(firstText);
+      if(allBlank || looksLikeTotal){ end--; } else { break; }
+    }
+    return rows.slice(0, end);
+  }
+
+  // Fetches one or more tabs from the same spreadsheet (cfg.sheetTabs, a list
+  // of tab names) one at a time through the shared JSONP queue, and merges
+  // them into a single {cols, rows} table using the first tab's headers.
+  function loadAllTabs(cfg){
+    var tabNames = (cfg.sheetTabs && cfg.sheetTabs.length) ? cfg.sheetTabs : [cfg.sheetName || ''];
+    var merged = {cols: null, rows: []};
+    var chain = Promise.resolve();
+    tabNames.forEach(function(tabName){
+      chain = chain.then(function(){
+        var tabCfg = {sheetId: cfg.sheetId, sheetName: tabName, gid: tabName ? null : cfg.gid};
+        return queuedLoadGviz(tabCfg).then(function(json){
+          var t = extractTable(json);
+          if(!merged.cols) merged.cols = t.cols;
+          merged.rows = merged.rows.concat(stripTrailingSummaryRows(t.rows));
+        });
+      });
+    });
+    return chain.then(function(){ return merged; });
+  }
+
+
   function createWidget(division){
     var slug = division.slug, name = division.name;
     var statusEl = document.getElementById('divStatus-' + slug);
@@ -1725,8 +1760,281 @@ renderVisitors();
         + '</div>';
     }
 
+    // Loosely matches a column header against a list of keywords (case-insensitive
+    // substring match), used to detect budget-style sheets (Plan/Funding Source,
+    // Allocated, Obligated, Utilized, Provincial Office) regardless of exact wording.
+    function findColIdx(cols, keywords){
+      for(var i=0;i<cols.length;i++){
+        var c = cols[i].toLowerCase();
+        for(var k=0;k<keywords.length;k++){
+          if(c.indexOf(keywords[k]) !== -1) return i;
+        }
+      }
+      return -1;
+    }
+
+    function toNumber(v){
+      if(typeof v === 'number') return v;
+      if(v == null || v === '') return 0;
+      var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+      return isNaN(n) ? 0 : n;
+    }
+
+    function formatPeso(n, compact){
+      if(compact){
+        var abs = Math.abs(n);
+        if(abs >= 1e6) return '\u20B1' + (n/1e6).toFixed(1) + 'M';
+        if(abs >= 1e3) return '\u20B1' + (n/1e3).toFixed(1) + 'K';
+        return '\u20B1' + n.toFixed(0);
+      }
+      return '\u20B1' + n.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    // Renders the richer "budget dashboard" layout — a grouped bar chart
+    // comparing Allocated/Obligated/Utilized per plan, a pie chart of
+    // allocation share, and a searchable detailed table — for sheets that
+    // actually contain budget figures (as opposed to plain logs/records).
+    function renderBudgetDashboard(data, colIdx){
+      var cols = data.cols, rows = data.rows;
+      var planIdx = colIdx.planIdx, officeIdx = colIdx.officeIdx,
+          allocIdx = colIdx.allocIdx, obligIdx = colIdx.obligIdx, utilIdx = colIdx.utilIdx;
+
+      var order = [];
+      var groups = {};
+      rows.forEach(function(r){
+        var key = String(r[planIdx] != null && r[planIdx] !== '' ? r[planIdx] : '(Unspecified)');
+        if(!groups[key]){ groups[key] = {allocated:0, obligated:0, utilized:0}; order.push(key); }
+        groups[key].allocated += toNumber(r[allocIdx]);
+        if(obligIdx >= 0) groups[key].obligated += toNumber(r[obligIdx]);
+        if(utilIdx >= 0) groups[key].utilized += toNumber(r[utilIdx]);
+      });
+      var totalAllocated = order.reduce(function(s,k){ return s + groups[k].allocated; }, 0);
+
+      var barId = 'divBudgetBar-' + slug, pieId = 'divBudgetPie-' + slug,
+          searchId = 'divBudgetSearch-' + slug, tbodyId = 'divBudgetTbody-' + slug;
+      var colCount = 2 + (officeIdx>=0?1:0) + (obligIdx>=0?1:0) + (utilIdx>=0?1:0);
+
+      var html = '<div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">'
+        + '<div class="card" style="flex:1 1 420px;"><h3>Budget Comparison by Plan</h3><div class="chart-box"><canvas id="'+barId+'"></canvas></div></div>'
+        + '<div class="card" style="flex:1 1 320px;"><h3>Allocation Distribution</h3><div class="chart-box"><canvas id="'+pieId+'"></canvas></div></div>'
+        + '</div>';
+
+      html += '<div class="card"><h3 style="margin-bottom:10px;">Detailed Budget Data</h3>'
+        + '<input type="text" id="'+searchId+'" placeholder="Search by office or plan…" '
+        + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
+        + '<div style="overflow-x:auto;"><table><thead><tr>'
+        + '<th>Plan/Funding Source</th>'
+        + (officeIdx>=0 ? '<th>Provincial Office</th>' : '')
+        + '<th>Allocated</th>' + (obligIdx>=0?'<th>Obligated</th>':'') + (utilIdx>=0?'<th>Utilized</th>':'')
+        + '</tr></thead><tbody id="'+tbodyId+'"></tbody></table></div>'
+        + '</div>';
+
+      bodyEl.innerHTML = html;
+
+      function renderRows(filterText){
+        filterText = (filterText || '').toLowerCase();
+        var filtered = !filterText ? rows : rows.filter(function(r){
+          var plan = String(r[planIdx] || '').toLowerCase();
+          var office = officeIdx>=0 ? String(r[officeIdx] || '').toLowerCase() : '';
+          return plan.indexOf(filterText) !== -1 || office.indexOf(filterText) !== -1;
+        });
+        var tbody = document.getElementById(tbodyId);
+        if(!tbody) return;
+        tbody.innerHTML = filtered.length ? filtered.slice(0, 200).map(function(r){
+          return '<tr><td>'+escapeHtml(r[planIdx])+'</td>'
+            + (officeIdx>=0 ? '<td>'+escapeHtml(r[officeIdx])+'</td>' : '')
+            + '<td>'+formatPeso(toNumber(r[allocIdx]))+'</td>'
+            + (obligIdx>=0 ? '<td>'+formatPeso(toNumber(r[obligIdx]))+'</td>' : '')
+            + (utilIdx>=0 ? '<td>'+formatPeso(toNumber(r[utilIdx]))+'</td>' : '')
+            + '</tr>';
+        }).join('') : '<tr><td colspan="'+colCount+'" style="text-align:center; color:var(--ink-soft); padding:20px;">No matching rows.</td></tr>';
+      }
+      renderRows('');
+      var searchInput = document.getElementById(searchId);
+      if(searchInput) searchInput.addEventListener('input', function(){ renderRows(this.value); });
+
+      var barColors = {allocated:'#2F5FDE', obligated:'#E08A2E', utilized:'#1E8F5B'};
+      var datasets = [{label:'Allocated', data: order.map(function(k){return groups[k].allocated;}), backgroundColor: barColors.allocated, borderRadius:4}];
+      if(obligIdx>=0) datasets.push({label:'Obligated', data: order.map(function(k){return groups[k].obligated;}), backgroundColor: barColors.obligated, borderRadius:4});
+      if(utilIdx>=0) datasets.push({label:'Utilized', data: order.map(function(k){return groups[k].utilized;}), backgroundColor: barColors.utilized, borderRadius:4});
+
+      new Chart(document.getElementById(barId), {
+        type:'bar',
+        data:{labels: order, datasets: datasets},
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{
+            legend:{position:'bottom', labels:{boxWidth:10}},
+            tooltip:{callbacks:{label:function(ctx){ return ctx.dataset.label + ': ' + formatPeso(ctx.parsed.y); }}}
+          },
+          scales:{
+            y:{beginAtZero:true, grid:{color:'#EEF3F0'}, ticks:{callback:function(v){ return formatPeso(v, true); }}},
+            x:{grid:{display:false}}
+          }
+        }
+      });
+
+      var piePalette = ['#2F5FDE','#0E4A2B','#1E8F5B','#0E7F63','#3E7FE0','#E08A2E','#7A3FC4','#B3352A','#249456','#8A5A1E','#C8971E','#5A8FE0','#B36BD1','#4CA37A'];
+      new Chart(document.getElementById(pieId), {
+        type:'pie',
+        data:{
+          labels: order.map(function(k){
+            var pct = totalAllocated>0 ? Math.round(groups[k].allocated/totalAllocated*100) : 0;
+            return k + ': ' + pct + '%';
+          }),
+          datasets:[{
+            data: order.map(function(k){return groups[k].allocated;}),
+            backgroundColor: order.map(function(k,i){return piePalette[i % piePalette.length];}),
+            borderColor:'#fff', borderWidth:2
+          }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{
+            legend:{position:'right', labels:{boxWidth:10, font:{size:11}}},
+            tooltip:{callbacks:{label:function(ctx){ return ctx.label.split(':')[0] + ': ' + formatPeso(ctx.parsed); }}}
+          }
+        }
+      });
+    }
+
+    // Renders a dashboard for log/correspondence-tracker style sheets —
+    // e.g. DATE RECEIVED, FROM, TITLE, ACTION REQUIRED/TAKEN, DIVISION,
+    // STATUS — using counts instead of currency: a bar chart of entries per
+    // division (received vs. acted on), a pie chart of status breakdown,
+    // and a searchable table of every row/column.
+    function renderLogDashboard(data, colIdx){
+      var cols = data.cols, rows = data.rows;
+      var divisionIdx = colIdx.divisionIdx, statusIdx = colIdx.statusIdx, actionTakenIdx = colIdx.actionTakenIdx;
+
+      function isFilled(v){ return v != null && String(v).trim() !== ''; }
+
+      var barOrder = [], barGroups = {};
+      if(divisionIdx >= 0){
+        rows.forEach(function(r){
+          var key = String(isFilled(r[divisionIdx]) ? r[divisionIdx] : '(Unspecified)');
+          if(!barGroups[key]){ barGroups[key] = {received:0, actionTaken:0}; barOrder.push(key); }
+          barGroups[key].received++;
+          if(actionTakenIdx >= 0 && isFilled(r[actionTakenIdx])) barGroups[key].actionTaken++;
+        });
+      }
+
+      var pieOrder = [], pieCounts = {};
+      if(statusIdx >= 0){
+        rows.forEach(function(r){
+          var key = String(isFilled(r[statusIdx]) ? r[statusIdx] : '(No status)');
+          if(pieCounts[key] === undefined){ pieCounts[key] = 0; pieOrder.push(key); }
+          pieCounts[key]++;
+        });
+      }
+      var totalRows = rows.length;
+
+      var barId = 'divLogBar-' + slug, pieId = 'divLogPie-' + slug,
+          searchId = 'divLogSearch-' + slug, tbodyId = 'divLogTbody-' + slug;
+
+      var html = '';
+      if(barOrder.length || pieOrder.length){
+        html += '<div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">';
+        if(barOrder.length){
+          html += '<div class="card" style="flex:1 1 420px;"><h3>Entries by Division</h3><div class="chart-box"><canvas id="'+barId+'"></canvas></div></div>';
+        }
+        if(pieOrder.length){
+          html += '<div class="card" style="flex:1 1 320px;"><h3>Status Distribution</h3><div class="chart-box"><canvas id="'+pieId+'"></canvas></div></div>';
+        }
+        html += '</div>';
+      }
+
+      html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
+        + '<input type="text" id="'+searchId+'" placeholder="Search by title, sender, division, or status…" '
+        + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
+        + '<div style="overflow-x:auto;"><table style="min-width:' + Math.max(700, cols.length * 130) + 'px; white-space:nowrap;"><thead><tr>'
+        + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('')
+        + '</tr></thead><tbody id="'+tbodyId+'"></tbody></table></div>'
+        + '</div>';
+
+      bodyEl.innerHTML = html;
+
+      function renderRows(filterText){
+        filterText = (filterText || '').toLowerCase();
+        var filtered = !filterText ? rows : rows.filter(function(r){
+          return r.some(function(v){ return String(v == null ? '' : v).toLowerCase().indexOf(filterText) !== -1; });
+        });
+        var tbody = document.getElementById(tbodyId);
+        if(!tbody) return;
+        tbody.innerHTML = filtered.length ? filtered.slice(0, 200).map(function(r){
+          return '<tr>' + r.map(function(v){ return '<td>'+escapeHtml(v===null||v===undefined?'':v)+'</td>'; }).join('') + '</tr>';
+        }).join('') : '<tr><td colspan="'+cols.length+'" style="text-align:center; color:var(--ink-soft); padding:20px;">No matching rows.</td></tr>';
+      }
+      renderRows('');
+      var searchInput = document.getElementById(searchId);
+      if(searchInput) searchInput.addEventListener('input', function(){ renderRows(this.value); });
+
+      if(barOrder.length){
+        new Chart(document.getElementById(barId), {
+          type:'bar',
+          data:{
+            labels: barOrder,
+            datasets: [
+              {label:'Received', data: barOrder.map(function(k){return barGroups[k].received;}), backgroundColor:'#2F5FDE', borderRadius:4},
+            ].concat(actionTakenIdx>=0 ? [{label:'Action taken', data: barOrder.map(function(k){return barGroups[k].actionTaken;}), backgroundColor:'#1E8F5B', borderRadius:4}] : [])
+          },
+          options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{legend:{position:'bottom', labels:{boxWidth:10}}},
+            scales:{y:{beginAtZero:true, grid:{color:'#EEF3F0'}, ticks:{precision:0}}, x:{grid:{display:false}}}
+          }
+        });
+      }
+
+      if(pieOrder.length){
+        var piePalette = ['#2F5FDE','#0E4A2B','#1E8F5B','#E08A2E','#7A3FC4','#B3352A','#249456','#8A5A1E','#C8971E','#5A8FE0'];
+        new Chart(document.getElementById(pieId), {
+          type:'pie',
+          data:{
+            labels: pieOrder.map(function(k){
+              var pct = totalRows>0 ? Math.round(pieCounts[k]/totalRows*100) : 0;
+              return k + ': ' + pct + '%';
+            }),
+            datasets:[{
+              data: pieOrder.map(function(k){return pieCounts[k];}),
+              backgroundColor: pieOrder.map(function(k,i){return piePalette[i % piePalette.length];}),
+              borderColor:'#fff', borderWidth:2
+            }]
+          },
+          options:{
+            responsive:true, maintainAspectRatio:false,
+            plugins:{legend:{position:'right', labels:{boxWidth:10, font:{size:11}}}}
+          }
+        });
+      }
+    }
+
     function renderTableAndChart(data){
       var cols = data.cols, rows = data.rows;
+
+      // Budget-style sheets (Plan/Funding Source + Allocated + Obligated/Utilized)
+      // get the richer bar+pie+searchable-table dashboard; everything else
+      // (logs, correspondence trackers, etc.) falls back to the plain table.
+      var planIdx = findColIdx(cols, ['plan', 'funding source']);
+      var allocIdx = findColIdx(cols, ['alloc']);
+      var obligIdx = findColIdx(cols, ['obligat']);
+      var utilIdx = findColIdx(cols, ['util']);
+      var officeIdx = findColIdx(cols, ['provincial office', 'office', 'division']);
+      if(planIdx >= 0 && allocIdx >= 0 && (obligIdx >= 0 || utilIdx >= 0)){
+        renderBudgetDashboard(data, {planIdx:planIdx, officeIdx:officeIdx, allocIdx:allocIdx, obligIdx:obligIdx, utilIdx:utilIdx});
+        return;
+      }
+
+      // Log/correspondence-tracker sheets (Division and/or Status columns,
+      // no budget figures) get the count-based dashboard instead.
+      var divisionIdx = findColIdx(cols, ['division']);
+      var statusIdx = findColIdx(cols, ['status']);
+      var actionTakenIdx = findColIdx(cols, ['action taken']);
+      if(divisionIdx >= 0 || statusIdx >= 0){
+        renderLogDashboard(data, {divisionIdx:divisionIdx, statusIdx:statusIdx, actionTakenIdx:actionTakenIdx});
+        return;
+      }
+
       var numericIdx = [];
       var labelIdx = 0;
       for(var i=0;i<cols.length;i++){
@@ -1781,9 +2089,8 @@ renderVisitors();
           return;
         }
         bodyEl.innerHTML = loadingHtml();
-        return queuedLoadGviz(cfg)
-          .then(function(json){
-            var data = extractTable(json);
+        return loadAllTabs(cfg)
+          .then(function(data){
             lastFetchedAt[slug] = new Date().toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
             if(statusEl) statusEl.innerHTML = connStatusHtml(cfg);
             renderTableAndChart(data);
@@ -1801,21 +2108,24 @@ renderVisitors();
       }
       getConfig(slug).then(function(cfg){
         cfg = cfg || {};
+        var tabsValue = (cfg.sheetTabs && cfg.sheetTabs.length) ? cfg.sheetTabs.join(', ') : (cfg.sheetName || '');
         var bodyHtml =
           '<div class="form-group"><label>Google Sheet link</label><input type="text" id="fDivSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+escapeHtml(cfg.rawUrl||'')+'"></div>'
-          + '<div class="form-group"><label>Tab / sheet name (optional)</label><input type="text" id="fDivSheetName" placeholder="e.g. Sheet1 — leave blank for the first tab" value="'+escapeHtml(cfg.sheetName||'')+'"></div>'
+          + '<div class="form-group"><label>Tab(s) / sheet name(s) (optional)</label><input type="text" id="fDivSheetName" placeholder="e.g. Jan, Feb, Mar — leave blank for the first tab" value="'+escapeHtml(tabsValue)+'"></div>'
+          + '<div class="form-hint">Separate multiple tab names with commas to pull and combine data from all of them (e.g. one tab per month). Leave blank to just use the first tab.</div>'
           + '<div class="form-hint">In Google Sheets: File → Share → General access → "Anyone with the link" → Viewer. Then paste the link here.</div>'
           + '<div class="form-error" id="fDivSheetError">Couldn\'t find a valid sheet ID in that link.</div>';
 
         openModal('Connect ' + name + "'s Google Sheet", bodyHtml, function(){
           var url = document.getElementById('fDivSheetUrl').value.trim();
-          var sheetName = document.getElementById('fDivSheetName').value.trim();
+          var tabsInput = document.getElementById('fDivSheetName').value.trim();
+          var tabList = tabsInput ? tabsInput.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
           var id = extractSheetId(url);
           if(!id){
             document.getElementById('fDivSheetError').classList.add('show');
             return false;
           }
-          setConfig(slug, {sheetId:id, sheetName:sheetName, rawUrl:url}).then(fetchAndRender);
+          setConfig(slug, {sheetId:id, sheetTabs:tabList, sheetName: tabList[0] || '', rawUrl:url}).then(fetchAndRender);
         }, {saveLabel: cfg.sheetId ? 'Update' : 'Connect'});
 
         if(cfg.sheetId){
