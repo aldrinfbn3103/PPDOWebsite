@@ -1574,6 +1574,13 @@ renderVisitors();
 
   var lastFetchedAt = {};  // slug -> display time string
 
+  // Read-only Google Sheets API v4 key (restricted, in Cloud Console, to
+  // just the Sheets API + this site's domain). Used only for GET requests:
+  // listing a spreadsheet's tabs and reading their values. It cannot write
+  // to the sheet under any circumstance — an API key with no OAuth token
+  // simply has no access to any endpoint that isn't a plain GET.
+  var GOOGLE_SHEETS_API_KEY = 'AIzaSyCWGCGYuKie1UkP4_Ey09tD07JJvuDV65w';
+
   /* ---------------- Firestore-backed config (shared, not per-browser) ---------------- */
   function getConfig(slug){
     if(!db) return Promise.resolve(null);
@@ -1698,7 +1705,8 @@ renderVisitors();
   // Fetches one or more tabs from the same spreadsheet (cfg.sheetTabs, a list
   // of tab names) one at a time through the shared JSONP queue, and merges
   // them into a single {cols, rows} table using the first tab's headers.
-  function loadAllTabs(cfg){
+  // This is the fallback path used when auto-discovery is off (or fails).
+  function loadAllTabsManual(cfg){
     var tabNames = (cfg.sheetTabs && cfg.sheetTabs.length) ? cfg.sheetTabs : [cfg.sheetName || ''];
     var merged = {cols: null, rows: []};
     var chain = Promise.resolve();
@@ -1713,6 +1721,112 @@ renderVisitors();
       });
     });
     return chain.then(function(){ return merged; });
+  }
+
+  // Turns a raw value from the Sheets API v4 (always a string, or a number
+  // when valueRenderOption=UNFORMATTED_VALUE) into the same shape the gviz
+  // path produces: real numbers for numeric cells, plain strings otherwise.
+  // Needed so isNumericColumn()/toNumber() behave identically no matter
+  // which fetch path supplied the data.
+  function coerceCell(v){
+    if(v === undefined || v === null) return '';
+    if(typeof v === 'number') return v;
+    var s = String(v).trim();
+    if(s === '') return '';
+    // Only treat as a number if the whole trimmed string is numeric —
+    // avoids mangling things like phone numbers, dates, or "12 Main St".
+    if(/^-?\d+(\.\d+)?$/.test(s)) return parseFloat(s);
+    return v;
+  }
+
+  // Quotes a tab name for use in an A1-notation range if it contains
+  // spaces or special characters (Sheets API requires 'Tab Name'!A:Z).
+  function quoteTabName(tabName){
+    return "'" + String(tabName).replace(/'/g, "''") + "'";
+  }
+
+  // Lists every tab in a spreadsheet via the Sheets API v4 metadata
+  // endpoint (a plain GET with the read-only API key — no OAuth, no
+  // write access possible).
+  function listSpreadsheetTabs(sheetId){
+    var url = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId)
+      + '?key=' + GOOGLE_SHEETS_API_KEY + '&fields=' + encodeURIComponent('sheets.properties.title');
+    return fetch(url).then(function(resp){
+      if(!resp.ok){
+        return resp.json().catch(function(){ return null; }).then(function(body){
+          var msg = (body && body.error && body.error.message) || ('HTTP ' + resp.status);
+          throw new Error('Could not list tabs (' + msg + '). Check the API key restrictions and that the sheet is shared as "Anyone with the link".');
+        });
+      }
+      return resp.json();
+    }).then(function(json){
+      return (json.sheets || []).map(function(s){ return s.properties.title; });
+    });
+  }
+
+  // Fetches one tab's full values via the Sheets API v4 values endpoint.
+  function fetchTabValuesApi(sheetId, tabName){
+    var range = quoteTabName(tabName);
+    var url = 'https://sheets.googleapis.com/v4/spreadsheets/' + encodeURIComponent(sheetId)
+      + '/values/' + encodeURIComponent(range)
+      + '?key=' + GOOGLE_SHEETS_API_KEY + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING';
+    return fetch(url).then(function(resp){
+      if(!resp.ok){
+        return resp.json().catch(function(){ return null; }).then(function(body){
+          var msg = (body && body.error && body.error.message) || ('HTTP ' + resp.status);
+          throw new Error('Could not read tab "' + tabName + '" (' + msg + ').');
+        });
+      }
+      return resp.json();
+    }).then(function(json){
+      var values = json.values || [];
+      if(!values.length) return {cols: [], rows: []};
+      var cols = values[0].map(function(c, i){ return (c === undefined || c === null || c === '') ? ('Column ' + (i+1)) : String(c); });
+      var rows = values.slice(1).map(function(r){
+        var row = [];
+        for(var i=0;i<cols.length;i++){ row.push(coerceCell(r[i])); }
+        return row;
+      });
+      return {cols: cols, rows: rows};
+    });
+  }
+
+  // Auto-discovery path: lists every tab in the spreadsheet, fetches each
+  // one's values (in parallel — real CORS-backed fetch(), no JSONP queue
+  // needed), strips each tab's trailing summary row, and merges them all
+  // into one table using the first tab's headers as the canonical set.
+  function loadAllTabsAuto(cfg){
+    return listSpreadsheetTabs(cfg.sheetId).then(function(tabNames){
+      if(!tabNames.length) throw new Error('That spreadsheet has no tabs, or the API key can\'t see it.');
+      return Promise.all(tabNames.map(function(tabName){
+        return fetchTabValuesApi(cfg.sheetId, tabName);
+      })).then(function(tables){
+        var merged = {cols: null, rows: []};
+        tables.forEach(function(t){
+          if(!t.rows.length) return;
+          if(!merged.cols) merged.cols = t.cols;
+          merged.rows = merged.rows.concat(stripTrailingSummaryRows(t.rows));
+        });
+        if(!merged.cols) merged.cols = tables[0] ? tables[0].cols : [];
+        return merged;
+      });
+    });
+  }
+
+  // Top-level loader used by every widget. Prefers automatic tab discovery
+  // (cfg.autoDiscover, the default for newly-connected sheets) and falls
+  // back to the manual comma-separated tab list over JSONP if auto mode
+  // is off or the API call fails for any reason (e.g. key not yet active).
+  function loadAllTabs(cfg){
+    if(cfg.autoDiscover){
+      return loadAllTabsAuto(cfg).catch(function(err){
+        if(cfg.sheetTabs && cfg.sheetTabs.length){
+          return loadAllTabsManual(cfg); // silent fallback if a manual list was also saved
+        }
+        throw err;
+      });
+    }
+    return loadAllTabsManual(cfg);
   }
 
 
@@ -2109,15 +2223,21 @@ renderVisitors();
       getConfig(slug).then(function(cfg){
         cfg = cfg || {};
         var tabsValue = (cfg.sheetTabs && cfg.sheetTabs.length) ? cfg.sheetTabs.join(', ') : (cfg.sheetName || '');
+        var autoChecked = cfg.autoDiscover !== false; // default on for new connections
         var bodyHtml =
           '<div class="form-group"><label>Google Sheet link</label><input type="text" id="fDivSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+escapeHtml(cfg.rawUrl||'')+'"></div>'
-          + '<div class="form-group"><label>Tab(s) / sheet name(s) (optional)</label><input type="text" id="fDivSheetName" placeholder="e.g. Jan, Feb, Mar — leave blank for the first tab" value="'+escapeHtml(tabsValue)+'"></div>'
-          + '<div class="form-hint">Separate multiple tab names with commas to pull and combine data from all of them (e.g. one tab per month). Leave blank to just use the first tab.</div>'
+          + '<div class="form-group" style="display:flex; align-items:flex-start; gap:8px;">'
+          + '<input type="checkbox" id="fDivAutoTabs" style="margin-top:3px;"' + (autoChecked ? ' checked' : '') + '>'
+          + '<label for="fDivAutoTabs" style="margin:0;">Automatically pull every tab (recommended) — new monthly/quarterly tabs show up on their own, no need to type names.</label>'
+          + '</div>'
+          + '<div class="form-group" id="fDivManualTabsGroup" style="display:'+(autoChecked?'none':'block')+';">'
+          + '<label>Tab(s) / sheet name(s)</label><input type="text" id="fDivSheetName" placeholder="e.g. Jan, Feb, Mar — leave blank for the first tab" value="'+escapeHtml(tabsValue)+'"></div>'
           + '<div class="form-hint">In Google Sheets: File → Share → General access → "Anyone with the link" → Viewer. Then paste the link here.</div>'
           + '<div class="form-error" id="fDivSheetError">Couldn\'t find a valid sheet ID in that link.</div>';
 
         openModal('Connect ' + name + "'s Google Sheet", bodyHtml, function(){
           var url = document.getElementById('fDivSheetUrl').value.trim();
+          var autoDiscover = document.getElementById('fDivAutoTabs').checked;
           var tabsInput = document.getElementById('fDivSheetName').value.trim();
           var tabList = tabsInput ? tabsInput.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : [];
           var id = extractSheetId(url);
@@ -2125,8 +2245,16 @@ renderVisitors();
             document.getElementById('fDivSheetError').classList.add('show');
             return false;
           }
-          setConfig(slug, {sheetId:id, sheetTabs:tabList, sheetName: tabList[0] || '', rawUrl:url}).then(fetchAndRender);
+          setConfig(slug, {sheetId:id, autoDiscover:autoDiscover, sheetTabs:tabList, sheetName: tabList[0] || '', rawUrl:url}).then(fetchAndRender);
         }, {saveLabel: cfg.sheetId ? 'Update' : 'Connect'});
+
+        var autoCheckbox = document.getElementById('fDivAutoTabs');
+        var manualGroup = document.getElementById('fDivManualTabsGroup');
+        if(autoCheckbox && manualGroup){
+          autoCheckbox.addEventListener('change', function(){
+            manualGroup.style.display = this.checked ? 'none' : 'block';
+          });
+        }
 
         if(cfg.sheetId){
           var disconnectRow = document.createElement('div');
