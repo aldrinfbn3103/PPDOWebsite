@@ -399,36 +399,6 @@
         </div>
       </section>
 
-      <!-- ============ DIVISION DASHBOARDS ============ -->
-      <section class="section" id="sec-divisions">
-        <div class="page-head">
-          <div><h1>Division Dashboards</h1><p>Live data pulled directly from each division's own Google Sheet — no re-encoding required.</p></div>
-        </div>
-
-        <div class="card" style="margin-bottom:16px;">
-          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
-          <div id="divLoginBox"></div>
-          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Each division has its own account. Sign in as your division to connect or update its Google Sheet — other visitors can still view whatever is already connected.</p>
-        </div>
-
-        <div class="card card-divrow">
-          <div class="flex-1-220">
-            <label class="field-label">Select division</label>
-            <select id="divSelect" class="select-input"></select>
-          </div>
-          <div id="divConnStatus" class="text-muted-sm"></div>
-          <div class="row-actions-right">
-            <button class="btn btn-outline" id="btnDivRefresh" title="Re-fetch from Google Sheets">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 22v-6h6M3.5 9a8.5 8.5 0 0 1 14.6-4.9L21 8M20.5 15a8.5 8.5 0 0 1-14.6 4.9L3 16"/></svg>
-              Refresh
-            </button>
-            <button class="btn btn-primary role-hidden" id="btnDivConnect">Connect sheet</button>
-          </div>
-        </div>
-
-        <div id="divDashBody"></div>
-      </section>
-
       <!-- ============ REPORTS ============ -->
       <section class="section" id="sec-reports">
         <div class="page-head">
@@ -472,6 +442,25 @@
         <div class="page-head">
           <div><h1>Admin, Finance and Support Division</h1><p>Personnel administration, budgeting, records, procurement, and general support services for PPDO Tarlac.</p></div>
         </div>
+
+        <!-- Division live-data widget (Firebase-backed) -->
+        <div class="card" style="margin-bottom:16px;">
+          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
+          <div id="divLoginBox-admin"></div>
+          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
+        </div>
+        <div class="card card-divrow" style="margin-bottom:16px;">
+          <div id="divStatus-admin" class="text-muted-sm"></div>
+          <div class="row-actions-right">
+            <button class="btn btn-outline" id="btnDivRefresh-admin" title="Re-fetch from Google Sheets">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 22v-6h6M3.5 9a8.5 8.5 0 0 1 14.6-4.9L21 8M20.5 15a8.5 8.5 0 0 1-14.6 4.9L3 16"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary role-hidden" id="btnDivConnect-admin">Connect sheet</button>
+          </div>
+        </div>
+        <div id="divBody-admin" style="margin-bottom:24px;"></div>
+
         <div class="grid g4">
           <div class="card module-card">
             <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M17 11a4 4 0 1 0 0-8"/><path d="M1 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><path d="M17 21v-2a4 4 0 0 0-3-3.87"/></svg></div>
@@ -501,6 +490,25 @@
         <div class="page-head">
           <div><h1>Project Development and Investment Programming Division</h1><p>Project proposal development, feasibility studies, and the Provincial Development Investment Program (PDIP).</p></div>
         </div>
+
+        <!-- Division live-data widget (Firebase-backed) -->
+        <div class="card" style="margin-bottom:16px;">
+          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
+          <div id="divLoginBox-pdip"></div>
+          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
+        </div>
+        <div class="card card-divrow" style="margin-bottom:16px;">
+          <div id="divStatus-pdip" class="text-muted-sm"></div>
+          <div class="row-actions-right">
+            <button class="btn btn-outline" id="btnDivRefresh-pdip" title="Re-fetch from Google Sheets">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 22v-6h6M3.5 9a8.5 8.5 0 0 1 14.6-4.9L21 8M20.5 15a8.5 8.5 0 0 1-14.6 4.9L3 16"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary role-hidden" id="btnDivConnect-pdip">Connect sheet</button>
+          </div>
+        </div>
+        <div id="divBody-pdip" style="margin-bottom:24px;"></div>
+
         <div class="grid g4">
           <div class="card module-card">
             <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
@@ -530,6 +538,25 @@
         <div class="page-head">
           <div><h1>Research, GIS and Data Management Division</h1><p>Socio-economic research, statistics, geographic information systems, and provincial data management.</p></div>
         </div>
+
+        <!-- Division live-data widget (Firebase-backed) -->
+        <div class="card" style="margin-bottom:16px;">
+          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
+          <div id="divLoginBox-research"></div>
+          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
+        </div>
+        <div class="card card-divrow" style="margin-bottom:16px;">
+          <div id="divStatus-research" class="text-muted-sm"></div>
+          <div class="row-actions-right">
+            <button class="btn btn-outline" id="btnDivRefresh-research" title="Re-fetch from Google Sheets">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 22v-6h6M3.5 9a8.5 8.5 0 0 1 14.6-4.9L21 8M20.5 15a8.5 8.5 0 0 1-14.6 4.9L3 16"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary role-hidden" id="btnDivConnect-research">Connect sheet</button>
+          </div>
+        </div>
+        <div id="divBody-research" style="margin-bottom:24px;"></div>
+
         <div class="grid g4">
           <div class="card module-card">
             <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h4"/></svg></div>
@@ -559,6 +586,25 @@
         <div class="page-head">
           <div><h1>Monitoring and Evaluation, Reporting Division</h1><p>Tracking project implementation, evaluating outcomes, and preparing performance reports.</p></div>
         </div>
+
+        <!-- Division live-data widget (Firebase-backed) -->
+        <div class="card" style="margin-bottom:16px;">
+          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
+          <div id="divLoginBox-monitoring"></div>
+          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
+        </div>
+        <div class="card card-divrow" style="margin-bottom:16px;">
+          <div id="divStatus-monitoring" class="text-muted-sm"></div>
+          <div class="row-actions-right">
+            <button class="btn btn-outline" id="btnDivRefresh-monitoring" title="Re-fetch from Google Sheets">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 22v-6h6M3.5 9a8.5 8.5 0 0 1 14.6-4.9L21 8M20.5 15a8.5 8.5 0 0 1-14.6 4.9L3 16"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary role-hidden" id="btnDivConnect-monitoring">Connect sheet</button>
+          </div>
+        </div>
+        <div id="divBody-monitoring" style="margin-bottom:24px;"></div>
+
         <div class="grid g4">
           <div class="card module-card">
             <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
@@ -588,6 +634,25 @@
         <div class="page-head">
           <div><h1>Development Planning Division</h1><p>Formulating and updating the province's comprehensive development and land use plans.</p></div>
         </div>
+
+        <!-- Division live-data widget (Firebase-backed) -->
+        <div class="card" style="margin-bottom:16px;">
+          <label class="field-label" style="display:block; margin-bottom:8px;">Division sign-in</label>
+          <div id="divLoginBox-planning"></div>
+          <p style="font-size:12px; color:var(--ink-soft); margin:8px 0 0;">Sign in as this division's account to connect or update its live Google Sheet — other visitors can still view whatever is already connected.</p>
+        </div>
+        <div class="card card-divrow" style="margin-bottom:16px;">
+          <div id="divStatus-planning" class="text-muted-sm"></div>
+          <div class="row-actions-right">
+            <button class="btn btn-outline" id="btnDivRefresh-planning" title="Re-fetch from Google Sheets">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6M3 22v-6h6M3.5 9a8.5 8.5 0 0 1 14.6-4.9L21 8M20.5 15a8.5 8.5 0 0 1-14.6 4.9L3 16"/></svg>
+              Refresh
+            </button>
+            <button class="btn btn-primary role-hidden" id="btnDivConnect-planning">Connect sheet</button>
+          </div>
+        </div>
+        <div id="divBody-planning" style="margin-bottom:24px;"></div>
+
         <div class="grid g4">
           <div class="card module-card">
             <div class="module-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-6h6v6"/></svg></div>

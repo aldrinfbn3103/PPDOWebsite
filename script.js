@@ -17,7 +17,12 @@ document.addEventListener('click', function(e){
   if(goTarget){ go(goTarget.dataset.go, goTarget.hasAttribute('data-target') ? goTarget : null); return; }
 
   var connectTrigger = e.target.closest('[data-action="trigger-div-connect"]');
-  if(connectTrigger){ document.getElementById('btnDivConnect').click(); return; }
+  if(connectTrigger){
+    var slug = connectTrigger.dataset.slug;
+    var btn = slug ? document.getElementById('btnDivConnect-' + slug) : null;
+    if(btn) btn.click();
+    return;
+  }
 
   // NEW: expand/collapse the sidebar "Divisions" dropdown. This only
   // toggles visibility of the submenu — it intentionally has no data-go,
@@ -1478,66 +1483,57 @@ renderVisitors();
      - Firestore: stores each division's connected sheet centrally, so
        every visitor sees it (not just the browser that connected it).
 
-   NOTE: this uses the actual 5 PPDO organizational divisions (matching
-   the sidebar "Divisions" dropdown / sec-div-* pages) rather than the
-   "Sectors" + "Special Units" lists, which are a different grouping.
+   Each of the 5 PPDO divisions gets its own widget, embedded directly on
+   its own page (sec-div-<slug>) instead of a separate hidden dashboard
+   page. All 5 widgets share one Firebase auth session: sign in once as
+   e.g. pdip@ppdo.gov.ph and the "Connect sheet" button appears only on
+   the PDIP page (the one that account is allowed to edit); the other 4
+   pages stay read-only for that same signed-in session.
    ======================================================================= */
 (function(){
+  // slug must match each page's section id (sec-div-<slug>) and the
+  // divLoginBox-<slug> / divStatus-<slug> / btnDivRefresh-<slug> /
+  // btnDivConnect-<slug> / divBody-<slug> element ids in index.html.
   var DIVISIONS = [
-    'Admin, Finance and Support',
-    'Project Development and Investment Programming',
-    'Research, GIS and Data Management',
-    'Monitoring and Evaluation, Reporting',
-    'Development Planning'
+    {slug: 'admin',      name: 'Admin, Finance and Support'},
+    {slug: 'pdip',       name: 'Project Development and Investment Programming'},
+    {slug: 'research',   name: 'Research, GIS and Data Management'},
+    {slug: 'monitoring', name: 'Monitoring and Evaluation, Reporting'},
+    {slug: 'planning',   name: 'Development Planning'}
   ];
 
   // One Firebase Authentication account per division. Create these in the
   // Firebase console (Authentication -> Users -> Add user) with whatever
   // passwords you choose; only the email needs to match here.
   var DIVISION_ACCOUNTS = {
-    'admin@ppdo.gov.ph': 'Admin, Finance and Support',
-    'pdip@ppdo.gov.ph': 'Project Development and Investment Programming',
-    'research@ppdo.gov.ph': 'Research, GIS and Data Management',
-    'monitoring@ppdo.gov.ph': 'Monitoring and Evaluation, Reporting',
-    'planning@ppdo.gov.ph': 'Development Planning'
+    'admin@ppdo.gov.ph': 'admin',
+    'pdip@ppdo.gov.ph': 'pdip',
+    'research@ppdo.gov.ph': 'research',
+    'monitoring@ppdo.gov.ph': 'monitoring',
+    'planning@ppdo.gov.ph': 'planning'
   };
-
-  function slugify(name){
-    return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-  }
-
-  function divisionList(){ return DIVISIONS; }
-
-  var currentDivision = null;
-  var lastFetchedAt = {};
-  var signedInDivision = null; // division name tied to the logged-in account, if any
-
-  var selectEl = document.getElementById('divSelect');
-  var bodyEl = document.getElementById('divDashBody');
-  var statusEl = document.getElementById('divConnStatus');
-  var connectBtn = document.getElementById('btnDivConnect');
-  var refreshBtn = document.getElementById('btnDivRefresh');
-  var loginBox = document.getElementById('divLoginBox');
-  if(!selectEl) return; // section not present
 
   var fbAuth = (typeof firebase !== 'undefined') ? firebase.auth() : null;
   var db = (typeof firebase !== 'undefined') ? firebase.firestore() : null;
 
+  var signedInSlug = null; // slug of the division tied to the logged-in account, if any
+  var lastFetchedAt = {};  // slug -> display time string
+
   /* ---------------- Firestore-backed config (shared, not per-browser) ---------------- */
-  function getConfig(name){
+  function getConfig(slug){
     if(!db) return Promise.resolve(null);
-    return db.collection('divisionSheets').doc(slugify(name)).get().then(function(doc){
+    return db.collection('divisionSheets').doc(slug).get().then(function(doc){
       return doc.exists ? doc.data() : null;
     }).catch(function(){ return null; });
   }
-  function setConfig(name, cfg){
+  function setConfig(slug, cfg){
     if(!db) return Promise.resolve();
     cfg = Object.assign({}, cfg, {updatedAt: new Date().toISOString()});
-    return db.collection('divisionSheets').doc(slugify(name)).set(cfg);
+    return db.collection('divisionSheets').doc(slug).set(cfg);
   }
-  function clearConfig(name){
+  function clearConfig(slug){
     if(!db) return Promise.resolve();
-    return db.collection('divisionSheets').doc(slugify(name)).delete();
+    return db.collection('divisionSheets').doc(slug).delete();
   }
 
   function extractSheetId(input){
@@ -1604,206 +1600,225 @@ renderVisitors();
     return {cols: cols, rows: rows};
   }
 
-  function populateSelect(){
-    selectEl.innerHTML = divisionList().map(function(name){
-      return '<option value="'+escapeHtml(name)+'">'+escapeHtml(name)+'</option>';
-    }).join('');
-    currentDivision = divisionList()[0];
-  }
-
-  function canConfigureCurrent(){
-    return !!(signedInDivision && signedInDivision === currentDivision);
-  }
-
-  function connStatusHtml(cfg){
-    if(!cfg) return '<span style="color:var(--ink-soft);">● Not connected</span>';
-    var t = lastFetchedAt[currentDivision];
-    var label = t ? ('Live · updated ' + t) : 'Live · connected';
-    return '<span style="color:var(--green-700); font-weight:600;">● ' + escapeHtml(label) + '</span>';
-  }
-
-  function emptyStateHtml(){
-    var canConfigure = canConfigureCurrent();
-    return '<div class="card" style="text-align:center; padding:40px 24px;">'
-      + '<h3 style="margin-bottom:6px;">No live sheet connected yet</h3>'
-      + '<p style="color:var(--ink-soft); font-size:13px; max-width:460px; margin:0 auto 16px;">'
-      + (canConfigure
-          ? 'Connect this division\'s own Google Sheet — data stays in the sheet, this page just mirrors it. Share the sheet as <strong>"Anyone with the link — Viewer"</strong>, then paste the link below.'
-          : 'This division hasn\'t connected a live data source yet. Sign in as this division above to connect one, or check back soon.')
-      + '</p>'
-      + (canConfigure ? '<button class="btn btn-primary" data-action="trigger-div-connect">Connect Google Sheet</button>' : '')
-      + '</div>';
-  }
-
-  function loadingHtml(){
-    return '<div class="card" style="text-align:center; padding:40px 24px; color:var(--ink-soft); font-size:13px;">Fetching latest data from Google Sheets…</div>';
-  }
-
-  function errorHtml(msg){
-    return '<div class="card" style="padding:24px;">'
-      + '<h3 style="color:var(--danger); margin-bottom:6px;">Couldn\'t load this sheet</h3>'
-      + '<p style="color:var(--ink-soft); font-size:13px; margin:0 0 12px;">' + escapeHtml(msg) + '</p>'
-      + '<p style="color:var(--ink-soft); font-size:12.5px; margin:0;">Double-check that the sheet\'s sharing setting is <strong>"Anyone with the link — Viewer"</strong>, and that the link points to the correct tab. If the sheet must stay private, this division will need a backend sync instead of a direct link.</p>'
-      + '</div>';
+  // The gviz JSONP callback is a single global, so two widgets fetching
+  // at once would clobber each other. Queue fetches so they run one at a
+  // time across all 5 widgets.
+  var fetchQueue = Promise.resolve();
+  function queuedLoadGviz(cfg){
+    var result = fetchQueue.then(function(){ return loadGvizViaJsonp(cfg); });
+    fetchQueue = result.catch(function(){ /* keep queue alive after an error */ });
+    return result;
   }
 
   function isNumericColumn(rows, idx){
     return rows.length > 0 && rows.every(function(r){ return typeof r[idx] === 'number' || r[idx] === '' || r[idx] == null; });
   }
 
-  function renderTableAndChart(data){
-    var cols = data.cols, rows = data.rows;
-    var numericIdx = [];
-    var labelIdx = 0;
-    for(var i=0;i<cols.length;i++){
-      if(isNumericColumn(rows, i)) numericIdx.push(i);
-    }
-    for(var j=0;j<cols.length;j++){
-      if(numericIdx.indexOf(j) === -1){ labelIdx = j; break; }
-    }
-    var html = '';
-    if(numericIdx.length){
-      html += '<div class="card" style="margin-bottom:16px;"><h3>' + escapeHtml(currentDivision) + ' — at a glance</h3>'
-        + '<div class="chart-box"><canvas id="divChartCanvas"></canvas></div></div>';
-    }
-    html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
-      + '<table><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
-      + '<tbody>' + rows.slice(0, 200).map(function(r){
-          return '<tr>' + r.map(function(v){ return '<td>'+escapeHtml(v===null||v===undefined?'':v)+'</td>'; }).join('') + '</tr>';
-        }).join('') + '</tbody></table>'
-      + (rows.length > 200 ? '<p style="font-size:12px; color:var(--ink-soft); margin-top:10px;">Showing first 200 of '+rows.length+' rows.</p>' : '')
-      + '</div>';
-    bodyEl.innerHTML = html;
+  /* ---------------- One widget instance per division ---------------- */
+  function createWidget(division){
+    var slug = division.slug, name = division.name;
+    var statusEl = document.getElementById('divStatus-' + slug);
+    var connectBtn = document.getElementById('btnDivConnect-' + slug);
+    var refreshBtn = document.getElementById('btnDivRefresh-' + slug);
+    var loginBox = document.getElementById('divLoginBox-' + slug);
+    var bodyEl = document.getElementById('divBody-' + slug);
+    if(!bodyEl) return null; // this division's page/widget isn't on this build
 
-    if(numericIdx.length){
-      var labels = rows.map(function(r){ return String(r[labelIdx] != null ? r[labelIdx] : ''); });
-      var palette = ['#145C34','#C8971E','#1E5FA8','#B3352A','#0E4A2B','#249456'];
-      var datasets = numericIdx.slice(0, 4).map(function(idx, k){
-        return {label: cols[idx], data: rows.map(function(r){ return typeof r[idx]==='number' ? r[idx] : null; }), backgroundColor: palette[k % palette.length], borderRadius:6};
+    function canConfigure(){
+      return signedInSlug === slug;
+    }
+
+    function connStatusHtml(cfg){
+      if(!cfg) return '<span style="color:var(--ink-soft);">● Not connected</span>';
+      var t = lastFetchedAt[slug];
+      var label = t ? ('Live · updated ' + t) : 'Live · connected';
+      return '<span style="color:var(--green-700); font-weight:600;">● ' + escapeHtml(label) + '</span>';
+    }
+
+    function emptyStateHtml(){
+      var can = canConfigure();
+      return '<div class="card" style="text-align:center; padding:40px 24px;">'
+        + '<h3 style="margin-bottom:6px;">No live sheet connected yet</h3>'
+        + '<p style="color:var(--ink-soft); font-size:13px; max-width:460px; margin:0 auto 16px;">'
+        + (can
+            ? 'Connect this division\'s own Google Sheet — data stays in the sheet, this page just mirrors it. Share the sheet as <strong>"Anyone with the link — Viewer"</strong>, then paste the link below.'
+            : 'This division hasn\'t connected a live data source yet. Sign in as this division above to connect one, or check back soon.')
+        + '</p>'
+        + (can ? '<button class="btn btn-primary" data-action="trigger-div-connect" data-slug="'+slug+'">Connect Google Sheet</button>' : '')
+        + '</div>';
+    }
+
+    function loadingHtml(){
+      return '<div class="card" style="text-align:center; padding:40px 24px; color:var(--ink-soft); font-size:13px;">Fetching latest data from Google Sheets…</div>';
+    }
+
+    function errorHtml(msg){
+      return '<div class="card" style="padding:24px;">'
+        + '<h3 style="color:var(--danger); margin-bottom:6px;">Couldn\'t load this sheet</h3>'
+        + '<p style="color:var(--ink-soft); font-size:13px; margin:0 0 12px;">' + escapeHtml(msg) + '</p>'
+        + '<p style="color:var(--ink-soft); font-size:12.5px; margin:0;">Double-check that the sheet\'s sharing setting is <strong>"Anyone with the link — Viewer"</strong>, and that the link points to the correct tab. If the sheet must stay private, this division will need a backend sync instead of a direct link.</p>'
+        + '</div>';
+    }
+
+    function renderTableAndChart(data){
+      var cols = data.cols, rows = data.rows;
+      var numericIdx = [];
+      var labelIdx = 0;
+      for(var i=0;i<cols.length;i++){
+        if(isNumericColumn(rows, i)) numericIdx.push(i);
+      }
+      for(var j=0;j<cols.length;j++){
+        if(numericIdx.indexOf(j) === -1){ labelIdx = j; break; }
+      }
+      var chartId = 'divChartCanvas-' + slug;
+      var html = '';
+      if(numericIdx.length){
+        html += '<div class="card" style="margin-bottom:16px;"><h3>' + escapeHtml(name) + ' — at a glance</h3>'
+          + '<div class="chart-box"><canvas id="'+chartId+'"></canvas></div></div>';
+      }
+      html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
+        + '<table><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
+        + '<tbody>' + rows.slice(0, 200).map(function(r){
+            return '<tr>' + r.map(function(v){ return '<td>'+escapeHtml(v===null||v===undefined?'':v)+'</td>'; }).join('') + '</tr>';
+          }).join('') + '</tbody></table>'
+        + (rows.length > 200 ? '<p style="font-size:12px; color:var(--ink-soft); margin-top:10px;">Showing first 200 of '+rows.length+' rows.</p>' : '')
+        + '</div>';
+      bodyEl.innerHTML = html;
+
+      if(numericIdx.length){
+        var labels = rows.map(function(r){ return String(r[labelIdx] != null ? r[labelIdx] : ''); });
+        var palette = ['#145C34','#C8971E','#1E5FA8','#B3352A','#0E4A2B','#249456'];
+        var datasets = numericIdx.slice(0, 4).map(function(idx, k){
+          return {label: cols[idx], data: rows.map(function(r){ return typeof r[idx]==='number' ? r[idx] : null; }), backgroundColor: palette[k % palette.length], borderRadius:6};
+        });
+        new Chart(document.getElementById(chartId), {
+          type:'bar',
+          data:{labels:labels, datasets:datasets},
+          options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10}}}, scales:{y:{beginAtZero:true, grid:{color:'#EEF3F0'}}, x:{grid:{display:false}}}}
+        });
+      }
+    }
+
+    function fetchAndRender(){
+      if(statusEl) statusEl.innerHTML = '<span style="color:var(--ink-soft);">Loading…</span>';
+      if(connectBtn) connectBtn.style.display = canConfigure() ? 'inline-flex' : 'none';
+      return getConfig(slug).then(function(cfg){
+        if(statusEl) statusEl.innerHTML = connStatusHtml(cfg);
+        if(connectBtn){
+          connectBtn.style.display = canConfigure() ? 'inline-flex' : 'none';
+          connectBtn.textContent = cfg ? 'Reconfigure sheet' : 'Connect sheet';
+        }
+
+        if(!cfg){
+          bodyEl.innerHTML = emptyStateHtml();
+          return;
+        }
+        bodyEl.innerHTML = loadingHtml();
+        return queuedLoadGviz(cfg)
+          .then(function(json){
+            var data = extractTable(json);
+            lastFetchedAt[slug] = new Date().toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
+            if(statusEl) statusEl.innerHTML = connStatusHtml(cfg);
+            renderTableAndChart(data);
+          })
+          .catch(function(err){
+            bodyEl.innerHTML = errorHtml(err.message || 'Unknown error while fetching the sheet.');
+          });
       });
-      new Chart(document.getElementById('divChartCanvas'), {
-        type:'bar',
-        data:{labels:labels, datasets:datasets},
-        options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10}}}, scales:{y:{beginAtZero:true, grid:{color:'#EEF3F0'}}, x:{grid:{display:false}}}}
-      });
     }
-  }
 
-  function fetchAndRender(){
-    statusEl.innerHTML = '<span style="color:var(--ink-soft);">Loading…</span>';
-    connectBtn.style.display = canConfigureCurrent() ? 'inline-flex' : 'none';
-    getConfig(currentDivision).then(function(cfg){
-      statusEl.innerHTML = connStatusHtml(cfg);
-      connectBtn.style.display = canConfigureCurrent() ? 'inline-flex' : 'none';
-      connectBtn.textContent = cfg ? 'Reconfigure sheet' : 'Connect sheet';
-
-      if(!cfg){
-        bodyEl.innerHTML = emptyStateHtml();
+    function openConnectForm(){
+      if(!canConfigure()){
+        alert('Sign in as "' + name + '" above to connect its sheet.');
         return;
       }
-      bodyEl.innerHTML = loadingHtml();
-      loadGvizViaJsonp(cfg)
-        .then(function(json){
-          var data = extractTable(json);
-          lastFetchedAt[currentDivision] = new Date().toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'});
-          statusEl.innerHTML = connStatusHtml(cfg);
-          renderTableAndChart(data);
-        })
-        .catch(function(err){
-          bodyEl.innerHTML = errorHtml(err.message || 'Unknown error while fetching the sheet.');
-        });
-    });
-  }
+      getConfig(slug).then(function(cfg){
+        cfg = cfg || {};
+        var bodyHtml =
+          '<div class="form-group"><label>Google Sheet link</label><input type="text" id="fDivSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+escapeHtml(cfg.rawUrl||'')+'"></div>'
+          + '<div class="form-group"><label>Tab / sheet name (optional)</label><input type="text" id="fDivSheetName" placeholder="e.g. Sheet1 — leave blank for the first tab" value="'+escapeHtml(cfg.sheetName||'')+'"></div>'
+          + '<div class="form-hint">In Google Sheets: File → Share → General access → "Anyone with the link" → Viewer. Then paste the link here.</div>'
+          + '<div class="form-error" id="fDivSheetError">Couldn\'t find a valid sheet ID in that link.</div>';
 
-  function openConnectForm(){
-    if(!canConfigureCurrent()){
-      alert('Sign in as "' + currentDivision + '" above to connect its sheet.');
-      return;
-    }
-    getConfig(currentDivision).then(function(cfg){
-      cfg = cfg || {};
-      var bodyHtml =
-        '<div class="form-group"><label>Google Sheet link</label><input type="text" id="fDivSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…/edit" value="'+escapeHtml(cfg.rawUrl||'')+'"></div>'
-        + '<div class="form-group"><label>Tab / sheet name (optional)</label><input type="text" id="fDivSheetName" placeholder="e.g. Sheet1 — leave blank for the first tab" value="'+escapeHtml(cfg.sheetName||'')+'"></div>'
-        + '<div class="form-hint">In Google Sheets: File → Share → General access → "Anyone with the link" → Viewer. Then paste the link here.</div>'
-        + '<div class="form-error" id="fDivSheetError">Couldn\'t find a valid sheet ID in that link.</div>';
+        openModal('Connect ' + name + "'s Google Sheet", bodyHtml, function(){
+          var url = document.getElementById('fDivSheetUrl').value.trim();
+          var sheetName = document.getElementById('fDivSheetName').value.trim();
+          var id = extractSheetId(url);
+          if(!id){
+            document.getElementById('fDivSheetError').classList.add('show');
+            return false;
+          }
+          setConfig(slug, {sheetId:id, sheetName:sheetName, rawUrl:url}).then(fetchAndRender);
+        }, {saveLabel: cfg.sheetId ? 'Update' : 'Connect'});
 
-      openModal('Connect ' + currentDivision + "'s Google Sheet", bodyHtml, function(){
-        var url = document.getElementById('fDivSheetUrl').value.trim();
-        var sheetName = document.getElementById('fDivSheetName').value.trim();
-        var id = extractSheetId(url);
-        if(!id){
-          document.getElementById('fDivSheetError').classList.add('show');
-          return false;
+        if(cfg.sheetId){
+          var disconnectRow = document.createElement('div');
+          disconnectRow.innerHTML = '<button type="button" class="btn btn-danger" style="margin-top:4px;" id="fDivDisconnect">Disconnect this sheet</button>';
+          document.getElementById('fDivSheetError').insertAdjacentElement('afterend', disconnectRow);
+          document.getElementById('fDivDisconnect').addEventListener('click', function(){
+            clearConfig(slug).then(function(){
+              closeModal();
+              fetchAndRender();
+            });
+          });
         }
-        setConfig(currentDivision, {sheetId:id, sheetName:sheetName, rawUrl:url}).then(fetchAndRender);
-      }, {saveLabel: cfg.sheetId ? 'Update' : 'Connect'});
+      });
+    }
 
-      if(cfg.sheetId){
-        var disconnectRow = document.createElement('div');
-        disconnectRow.innerHTML = '<button type="button" class="btn btn-danger" style="margin-top:4px;" id="fDivDisconnect">Disconnect this sheet</button>';
-        document.getElementById('fDivSheetError').insertAdjacentElement('afterend', disconnectRow);
-        document.getElementById('fDivDisconnect').addEventListener('click', function(){
-          clearConfig(currentDivision).then(function(){
-            closeModal();
-            fetchAndRender();
+    /* ---------------- Division sign-in box (shared auth state) ---------------- */
+    function renderLoginBox(){
+      if(!loginBox) return;
+      var user = fbAuth && fbAuth.currentUser;
+      if(user){
+        var mySlug = DIVISION_ACCOUNTS[user.email] || null;
+        loginBox.innerHTML = '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">'
+          + '<span style="font-size:13px; color:var(--ink-soft);">Signed in as <strong>'+escapeHtml(user.email)+'</strong>'
+          + (mySlug === slug ? ' (this division)' : (mySlug ? ' — signed in as a different division' : ' — this email isn\'t linked to a division yet'))+'</span>'
+          + '<button class="btn btn-outline" id="btnDivSignOut-'+slug+'" style="padding:4px 12px; font-size:12.5px;">Sign out</button>'
+          + '</div>';
+        var signOutBtn = document.getElementById('btnDivSignOut-'+slug);
+        if(signOutBtn) signOutBtn.addEventListener('click', function(){ fbAuth.signOut(); });
+      } else {
+        loginBox.innerHTML = '<form id="divLoginForm-'+slug+'" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">'
+          + '<input type="email" id="divLoginEmail-'+slug+'" placeholder="division email" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; min-width:200px;">'
+          + '<input type="password" id="divLoginPass-'+slug+'" placeholder="password" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; min-width:140px;">'
+          + '<button type="submit" class="btn btn-primary" style="padding:6px 16px; font-size:13px;">Sign in</button>'
+          + '<span id="divLoginError-'+slug+'" style="color:var(--danger); font-size:12.5px; display:none;">Wrong email or password.</span>'
+          + '</form>';
+        document.getElementById('divLoginForm-'+slug).addEventListener('submit', function(e){
+          e.preventDefault();
+          var email = document.getElementById('divLoginEmail-'+slug).value.trim();
+          var pass = document.getElementById('divLoginPass-'+slug).value;
+          var errEl = document.getElementById('divLoginError-'+slug);
+          errEl.style.display = 'none';
+          if(!fbAuth){ return; }
+          fbAuth.signInWithEmailAndPassword(email, pass).catch(function(){
+            errEl.style.display = 'inline';
           });
         });
       }
-    });
-  }
-
-  /* ---------------- Division sign-in box ---------------- */
-  function renderLoginBox(){
-    if(!loginBox) return;
-    var user = fbAuth && fbAuth.currentUser;
-    if(user){
-      var div = DIVISION_ACCOUNTS[user.email] || null;
-      signedInDivision = div;
-      loginBox.innerHTML = '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">'
-        + '<span style="font-size:13px; color:var(--ink-soft);">Signed in as <strong>'+escapeHtml(user.email)+'</strong>'
-        + (div ? ' ('+escapeHtml(div)+')' : ' — this email isn\'t linked to a division yet')+'</span>'
-        + '<button class="btn btn-outline" id="btnDivSignOut" style="padding:4px 12px; font-size:12.5px;">Sign out</button>'
-        + '</div>';
-      document.getElementById('btnDivSignOut').addEventListener('click', function(){ fbAuth.signOut(); });
-    } else {
-      signedInDivision = null;
-      loginBox.innerHTML = '<form id="divLoginForm" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">'
-        + '<input type="email" id="divLoginEmail" placeholder="division email" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; min-width:200px;">'
-        + '<input type="password" id="divLoginPass" placeholder="password" style="padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; min-width:140px;">'
-        + '<button type="submit" class="btn btn-primary" style="padding:6px 16px; font-size:13px;">Sign in</button>'
-        + '<span id="divLoginError" style="color:var(--danger); font-size:12.5px; display:none;">Wrong email or password.</span>'
-        + '</form>';
-      document.getElementById('divLoginForm').addEventListener('submit', function(e){
-        e.preventDefault();
-        var email = document.getElementById('divLoginEmail').value.trim();
-        var pass = document.getElementById('divLoginPass').value;
-        var errEl = document.getElementById('divLoginError');
-        errEl.style.display = 'none';
-        if(!fbAuth){ return; }
-        fbAuth.signInWithEmailAndPassword(email, pass).catch(function(){
-          errEl.style.display = 'inline';
-        });
-      });
     }
+
+    if(refreshBtn) refreshBtn.addEventListener('click', fetchAndRender);
+    if(connectBtn) connectBtn.addEventListener('click', openConnectForm);
+
+    return {renderLoginBox: renderLoginBox, fetchAndRender: fetchAndRender};
   }
 
-  selectEl.addEventListener('change', function(){
-    currentDivision = selectEl.value;
-    fetchAndRender();
-  });
-  refreshBtn.addEventListener('click', fetchAndRender);
-  connectBtn.addEventListener('click', openConnectForm);
+  var widgets = DIVISIONS.map(createWidget).filter(Boolean);
+  if(!widgets.length) return; // none of these widgets are present on this page
 
-  populateSelect();
-  renderLoginBox();
-  fetchAndRender();
+  function refreshAll(){
+    widgets.forEach(function(w){ w.renderLoginBox(); w.fetchAndRender(); });
+  }
 
   if(fbAuth){
-    fbAuth.onAuthStateChanged(function(){
-      renderLoginBox();
-      fetchAndRender();
+    fbAuth.onAuthStateChanged(function(user){
+      signedInSlug = user ? (DIVISION_ACCOUNTS[user.email] || null) : null;
+      refreshAll();
     });
+  } else {
+    refreshAll();
   }
 })();
 
