@@ -1936,7 +1936,7 @@ renderVisitors();
       html += '<div class="card"><h3 style="margin-bottom:10px;">Detailed Budget Data</h3>'
         + '<input type="text" id="'+searchId+'" placeholder="Search by office or plan…" '
         + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
-        + '<div style="overflow-x:auto;"><table><thead><tr>'
+        + '<div class="sheet-table-wrap"><table><thead><tr>'
         + '<th>Plan/Funding Source</th>'
         + (officeIdx>=0 ? '<th>Provincial Office</th>' : '')
         + '<th>Allocated</th>' + (obligIdx>=0?'<th>Obligated</th>':'') + (utilIdx>=0?'<th>Utilized</th>':'')
@@ -2061,7 +2061,7 @@ renderVisitors();
       html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
         + '<input type="text" id="'+searchId+'" placeholder="Search by title, sender, division, or status…" '
         + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
-        + '<div style="overflow-x:auto;"><table style="min-width:' + Math.max(700, cols.length * 130) + 'px; white-space:nowrap;"><thead><tr>'
+        + '<div class="sheet-table-wrap"><table><thead><tr>'
         + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('')
         + '</tr></thead><tbody id="'+tbodyId+'"></tbody></table></div>'
         + '</div>';
@@ -2164,8 +2164,8 @@ renderVisitors();
           + '<div class="chart-box"><canvas id="'+chartId+'"></canvas></div></div>';
       }
       html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
-        + '<div style="overflow-x:auto;">'
-        + '<table style="min-width:' + Math.max(700, cols.length * 130) + 'px; white-space:nowrap;"><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
+        + '<div class="sheet-table-wrap">'
+        + '<table><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
         + '<tbody>' + rows.slice(0, 200).map(function(r){
             return '<tr>' + r.map(function(v){ return '<td>'+escapeHtml(v===null||v===undefined?'':v)+'</td>'; }).join('') + '</tr>';
           }).join('') + '</tbody></table>'
