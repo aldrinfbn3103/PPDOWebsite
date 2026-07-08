@@ -1894,6 +1894,18 @@ renderVisitors();
       return isNaN(n) ? 0 : n;
     }
 
+    // Shared column-sort comparator for sheet-data tables: numeric cells
+    // compare numerically, everything else compares as case-insensitive text.
+    function compareCell(a, b){
+      var av = (a === null || a === undefined) ? '' : a;
+      var bv = (b === null || b === undefined) ? '' : b;
+      if(typeof av === 'number' && typeof bv === 'number') return av - bv;
+      var as = String(av).toLowerCase(), bs = String(bv).toLowerCase();
+      if(as < bs) return -1;
+      if(as > bs) return 1;
+      return 0;
+    }
+
     function formatPeso(n, compact){
       if(compact){
         var abs = Math.abs(n);
@@ -1928,6 +1940,15 @@ renderVisitors();
           searchId = 'divBudgetSearch-' + slug, tbodyId = 'divBudgetTbody-' + slug;
       var colCount = 2 + (officeIdx>=0?1:0) + (obligIdx>=0?1:0) + (utilIdx>=0?1:0);
 
+      // Column definitions drive both the header row and each data row, so
+      // sorting can look up the right cell index and numeric columns can be
+      // right-aligned the way app-main's DataTable does.
+      var tableCols = [{label:'Plan/Funding Source', idx:planIdx, numeric:false}];
+      if(officeIdx>=0) tableCols.push({label:'Provincial Office', idx:officeIdx, numeric:false});
+      tableCols.push({label:'Allocated', idx:allocIdx, numeric:true});
+      if(obligIdx>=0) tableCols.push({label:'Obligated', idx:obligIdx, numeric:true});
+      if(utilIdx>=0) tableCols.push({label:'Utilized', idx:utilIdx, numeric:true});
+
       var html = '<div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px;">'
         + '<div class="card" style="flex:1 1 420px;"><h3>Budget Comparison by Plan</h3><div class="chart-box"><canvas id="'+barId+'"></canvas></div></div>'
         + '<div class="card" style="flex:1 1 320px;"><h3>Allocation Distribution</h3><div class="chart-box"><canvas id="'+pieId+'"></canvas></div></div>'
@@ -1937,35 +1958,55 @@ renderVisitors();
         + '<input type="text" id="'+searchId+'" placeholder="Search by office or plan…" '
         + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
         + '<div class="sheet-table-wrap"><table><thead><tr>'
-        + '<th>Plan/Funding Source</th>'
-        + (officeIdx>=0 ? '<th>Provincial Office</th>' : '')
-        + '<th>Allocated</th>' + (obligIdx>=0?'<th>Obligated</th>':'') + (utilIdx>=0?'<th>Utilized</th>':'')
+        + tableCols.map(function(c, i){ return '<th class="sortable-th'+(c.numeric?' num':'')+'" data-idx="'+i+'">'+escapeHtml(c.label)+'<span class="sort-ind"></span></th>'; }).join('')
         + '</tr></thead><tbody id="'+tbodyId+'"></tbody></table></div>'
+        + '<p class="table-footnote" id="'+tbodyId+'-footer"></p>'
         + '</div>';
 
       bodyEl.innerHTML = html;
 
+      var sortIdx = -1, sortDir = 1;
+
       function renderRows(filterText){
         filterText = (filterText || '').toLowerCase();
-        var filtered = !filterText ? rows : rows.filter(function(r){
+        var filtered = !filterText ? rows.slice() : rows.filter(function(r){
           var plan = String(r[planIdx] || '').toLowerCase();
           var office = officeIdx>=0 ? String(r[officeIdx] || '').toLowerCase() : '';
           return plan.indexOf(filterText) !== -1 || office.indexOf(filterText) !== -1;
         });
+        if(sortIdx >= 0){
+          var col = tableCols[sortIdx];
+          filtered.sort(function(a,b){
+            var av = col.numeric ? toNumber(a[col.idx]) : a[col.idx];
+            var bv = col.numeric ? toNumber(b[col.idx]) : b[col.idx];
+            return compareCell(av, bv) * sortDir;
+          });
+        }
         var tbody = document.getElementById(tbodyId);
         if(!tbody) return;
         tbody.innerHTML = filtered.length ? filtered.slice(0, 200).map(function(r){
-          return '<tr><td title="'+escapeHtml(r[planIdx])+'">'+escapeHtml(r[planIdx])+'</td>'
-            + (officeIdx>=0 ? '<td title="'+escapeHtml(r[officeIdx])+'">'+escapeHtml(r[officeIdx])+'</td>' : '')
-            + '<td>'+formatPeso(toNumber(r[allocIdx]))+'</td>'
-            + (obligIdx>=0 ? '<td>'+formatPeso(toNumber(r[obligIdx]))+'</td>' : '')
-            + (utilIdx>=0 ? '<td>'+formatPeso(toNumber(r[utilIdx]))+'</td>' : '')
-            + '</tr>';
+          return '<tr>' + tableCols.map(function(c){
+            if(c.numeric) return '<td class="num">'+formatPeso(toNumber(r[c.idx]))+'</td>';
+            var s = escapeHtml(r[c.idx]);
+            return '<td title="'+s+'">'+s+'</td>';
+          }).join('') + '</tr>';
         }).join('') : '<tr><td colspan="'+colCount+'" style="text-align:center; color:var(--ink-soft); padding:20px;">No matching rows.</td></tr>';
+        var footer = document.getElementById(tbodyId+'-footer');
+        if(footer) footer.textContent = 'Showing ' + Math.min(filtered.length, 200) + ' of ' + filtered.length + ' rows' + (filtered.length !== rows.length ? ' (filtered from ' + rows.length + ')' : '') + '.';
       }
       renderRows('');
       var searchInput = document.getElementById(searchId);
       if(searchInput) searchInput.addEventListener('input', function(){ renderRows(this.value); });
+
+      Array.prototype.forEach.call(bodyEl.querySelectorAll('.sortable-th'), function(th){
+        th.addEventListener('click', function(){
+          var idx = parseInt(th.getAttribute('data-idx'), 10);
+          if(sortIdx === idx){ sortDir = -sortDir; } else { sortIdx = idx; sortDir = 1; }
+          Array.prototype.forEach.call(bodyEl.querySelectorAll('.sortable-th .sort-ind'), function(ind){ ind.textContent = ''; });
+          th.querySelector('.sort-ind').textContent = sortDir === 1 ? ' \u2191' : ' \u2193';
+          renderRows(searchInput ? searchInput.value : '');
+        });
+      });
 
       var barColors = {allocated:'#2F5FDE', obligated:'#E08A2E', utilized:'#1E8F5B'};
       var datasets = [{label:'Allocated', data: order.map(function(k){return groups[k].allocated;}), backgroundColor: barColors.allocated, borderRadius:4}];
@@ -2062,26 +2103,44 @@ renderVisitors();
         + '<input type="text" id="'+searchId+'" placeholder="Search by title, sender, division, or status…" '
         + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
         + '<div class="sheet-table-wrap"><table><thead><tr>'
-        + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('')
+        + cols.map(function(c, i){ return '<th class="sortable-th" data-idx="'+i+'">'+escapeHtml(c)+'<span class="sort-ind"></span></th>'; }).join('')
         + '</tr></thead><tbody id="'+tbodyId+'"></tbody></table></div>'
+        + '<p class="table-footnote" id="'+tbodyId+'-footer"></p>'
         + '</div>';
 
       bodyEl.innerHTML = html;
 
+      var sortIdx = -1, sortDir = 1;
+
       function renderRows(filterText){
         filterText = (filterText || '').toLowerCase();
-        var filtered = !filterText ? rows : rows.filter(function(r){
+        var filtered = !filterText ? rows.slice() : rows.filter(function(r){
           return r.some(function(v){ return String(v == null ? '' : v).toLowerCase().indexOf(filterText) !== -1; });
         });
+        if(sortIdx >= 0){
+          filtered.sort(function(a,b){ return compareCell(a[sortIdx], b[sortIdx]) * sortDir; });
+        }
         var tbody = document.getElementById(tbodyId);
         if(!tbody) return;
         tbody.innerHTML = filtered.length ? filtered.slice(0, 200).map(function(r){
           return '<tr>' + r.map(function(v){ var s = escapeHtml(v===null||v===undefined?'':v); return '<td title="'+s+'">'+s+'</td>'; }).join('') + '</tr>';
         }).join('') : '<tr><td colspan="'+cols.length+'" style="text-align:center; color:var(--ink-soft); padding:20px;">No matching rows.</td></tr>';
+        var footer = document.getElementById(tbodyId+'-footer');
+        if(footer) footer.textContent = 'Showing ' + Math.min(filtered.length, 200) + ' of ' + filtered.length + ' rows' + (filtered.length !== rows.length ? ' (filtered from ' + rows.length + ')' : '') + '.';
       }
       renderRows('');
       var searchInput = document.getElementById(searchId);
       if(searchInput) searchInput.addEventListener('input', function(){ renderRows(this.value); });
+
+      Array.prototype.forEach.call(bodyEl.querySelectorAll('.sortable-th'), function(th){
+        th.addEventListener('click', function(){
+          var idx = parseInt(th.getAttribute('data-idx'), 10);
+          if(sortIdx === idx){ sortDir = -sortDir; } else { sortIdx = idx; sortDir = 1; }
+          Array.prototype.forEach.call(bodyEl.querySelectorAll('.sortable-th .sort-ind'), function(ind){ ind.textContent = ''; });
+          th.querySelector('.sort-ind').textContent = sortDir === 1 ? ' \u2191' : ' \u2193';
+          renderRows(searchInput ? searchInput.value : '');
+        });
+      });
 
       if(barOrder.length){
         new Chart(document.getElementById(barId), {
@@ -2158,21 +2217,52 @@ renderVisitors();
         if(numericIdx.indexOf(j) === -1){ labelIdx = j; break; }
       }
       var chartId = 'divChartCanvas-' + slug;
+      var searchId = 'divGenSearch-' + slug, tbodyId = 'divGenTbody-' + slug;
       var html = '';
       if(numericIdx.length){
         html += '<div class="card" style="margin-bottom:16px;"><h3>' + escapeHtml(name) + ' — at a glance</h3>'
           + '<div class="chart-box"><canvas id="'+chartId+'"></canvas></div></div>';
       }
       html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
+        + '<input type="text" id="'+searchId+'" placeholder="Search…" '
+        + 'style="width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:12px; font-size:13px; box-sizing:border-box;">'
         + '<div class="sheet-table-wrap">'
-        + '<table><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
-        + '<tbody>' + rows.slice(0, 200).map(function(r){
-            return '<tr>' + r.map(function(v){ var s = escapeHtml(v===null||v===undefined?'':v); return '<td title="'+s+'">'+s+'</td>'; }).join('') + '</tr>';
-          }).join('') + '</tbody></table>'
+        + '<table><thead><tr>' + cols.map(function(c, i){ return '<th class="sortable-th" data-idx="'+i+'">'+escapeHtml(c)+'<span class="sort-ind"></span></th>'; }).join('') + '</tr></thead>'
+        + '<tbody id="'+tbodyId+'"></tbody></table>'
         + '</div>'
-        + (rows.length > 200 ? '<p style="font-size:12px; color:var(--ink-soft); margin-top:10px;">Showing first 200 of '+rows.length+' rows.</p>' : '')
+        + '<p class="table-footnote" id="'+tbodyId+'-footer"></p>'
         + '</div>';
       bodyEl.innerHTML = html;
+
+      var sortIdx = -1, sortDir = 1;
+      function renderRows(filterText){
+        filterText = (filterText || '').toLowerCase();
+        var filtered = !filterText ? rows.slice() : rows.filter(function(r){
+          return r.some(function(v){ return String(v == null ? '' : v).toLowerCase().indexOf(filterText) !== -1; });
+        });
+        if(sortIdx >= 0){
+          filtered.sort(function(a,b){ return compareCell(a[sortIdx], b[sortIdx]) * sortDir; });
+        }
+        var tbody = document.getElementById(tbodyId);
+        if(!tbody) return;
+        tbody.innerHTML = filtered.length ? filtered.slice(0, 200).map(function(r){
+          return '<tr>' + r.map(function(v){ var s = escapeHtml(v===null||v===undefined?'':v); return '<td title="'+s+'">'+s+'</td>'; }).join('') + '</tr>';
+        }).join('') : '<tr><td colspan="'+cols.length+'" style="text-align:center; color:var(--ink-soft); padding:20px;">No matching rows.</td></tr>';
+        var footer = document.getElementById(tbodyId+'-footer');
+        if(footer) footer.textContent = 'Showing ' + Math.min(filtered.length, 200) + ' of ' + filtered.length + ' rows' + (filtered.length !== rows.length ? ' (filtered from ' + rows.length + ')' : '') + '.';
+      }
+      renderRows('');
+      var searchInput = document.getElementById(searchId);
+      if(searchInput) searchInput.addEventListener('input', function(){ renderRows(this.value); });
+      Array.prototype.forEach.call(bodyEl.querySelectorAll('.sortable-th'), function(th){
+        th.addEventListener('click', function(){
+          var idx = parseInt(th.getAttribute('data-idx'), 10);
+          if(sortIdx === idx){ sortDir = -sortDir; } else { sortIdx = idx; sortDir = 1; }
+          Array.prototype.forEach.call(bodyEl.querySelectorAll('.sortable-th .sort-ind'), function(ind){ ind.textContent = ''; });
+          th.querySelector('.sort-ind').textContent = sortDir === 1 ? ' \u2191' : ' \u2193';
+          renderRows(searchInput ? searchInput.value : '');
+        });
+      });
 
       if(numericIdx.length){
         var labels = rows.map(function(r){ return String(r[labelIdx] != null ? r[labelIdx] : ''); });
