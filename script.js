@@ -1666,7 +1666,18 @@ renderVisitors();
   }
 
   function isNumericColumn(rows, idx){
-    return rows.length > 0 && rows.every(function(r){ return typeof r[idx] === 'number' || r[idx] === '' || r[idx] == null; });
+    if(!rows.length) return false;
+    var sawNumber = false;
+    for(var i=0;i<rows.length;i++){
+      var v = rows[i][idx];
+      if(typeof v === 'number'){ sawNumber = true; continue; }
+      if(v === '' || v == null) continue;
+      return false; // a genuine non-numeric, non-blank value disqualifies the column
+    }
+    // Only count it as numeric if it actually contained real numbers —
+    // otherwise a mostly-blank text column (e.g. "Action Taken") would
+    // trivially pass and end up charted as an empty, meaningless series.
+    return sawNumber;
   }
 
   /* ---------------- One widget instance per division ---------------- */
@@ -1731,10 +1742,12 @@ renderVisitors();
           + '<div class="chart-box"><canvas id="'+chartId+'"></canvas></div></div>';
       }
       html += '<div class="card"><h3 style="margin-bottom:10px;">Sheet data (' + rows.length + ' rows)</h3>'
-        + '<table><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
+        + '<div style="overflow-x:auto;">'
+        + '<table style="min-width:' + Math.max(700, cols.length * 130) + 'px; white-space:nowrap;"><thead><tr>' + cols.map(function(c){ return '<th>'+escapeHtml(c)+'</th>'; }).join('') + '</tr></thead>'
         + '<tbody>' + rows.slice(0, 200).map(function(r){
             return '<tr>' + r.map(function(v){ return '<td>'+escapeHtml(v===null||v===undefined?'':v)+'</td>'; }).join('') + '</tr>';
           }).join('') + '</tbody></table>'
+        + '</div>'
         + (rows.length > 200 ? '<p style="font-size:12px; color:var(--ink-soft); margin-top:10px;">Showing first 200 of '+rows.length+' rows.</p>' : '')
         + '</div>';
       bodyEl.innerHTML = html;
